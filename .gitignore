@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Runtime state — contains the bridge auth token. Never commit.
+.ae-claude-bridge.json
+
+# Local editor / tooling
+.vscode/
+.idea/
+node_modules/
+*.log

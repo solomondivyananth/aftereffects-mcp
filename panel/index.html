@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Claude Bridge</title>
+<style>
+  :root {
+    --bg: #232323; --panel: #2b2b2b; --line: #3a3a3a;
+    --fg: #d6d6d6; --dim: #8a8a8a;
+    --ok: #6bbf59; --err: #e06c5f; --warn: #d4a24c; --write: #6ea8d8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 11px/1.5 -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+  .sec { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .row { display: flex; align-items: center; gap: 6px; }
+  .row + .row { margin-top: 5px; }
+  .label { color: var(--dim); min-width: 54px; flex: 0 0 auto; }
+  .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+  .dot.on { background: var(--ok); } .dot.off { background: var(--err); }
+  button {
+    background: #3a3a3a; color: var(--fg); border: 1px solid #4a4a4a;
+    border-radius: 3px; padding: 3px 8px; font: inherit; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #454545; }
+  button:disabled { opacity: .4; cursor: default; }
+  input[type=text], input[type=number] {
+    background: #1e1e1e; color: var(--fg); border: 1px solid #4a4a4a;
+    border-radius: 3px; padding: 2px 5px; font: inherit; width: 64px;
+  }
+  .guard { padding: 4px 6px; border-radius: 3px; font-weight: 600; margin-top: 6px; }
+  .guard.locked { background: rgba(107,191,89,.13); color: var(--ok); }
+  .guard.unlocked { background: rgba(224,108,95,.15); color: var(--err); }
+  #log {
+    flex: 1; overflow-y: auto; padding: 6px 10px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 10px;
+  }
+  .line { color: var(--dim); white-space: pre-wrap; word-break: break-word; }
+  .line.ok { color: var(--ok); } .line.err { color: var(--err); }
+  .line.warn { color: var(--warn); } .line.write { color: var(--write); }
+  .foot {
+    padding: 4px 10px; border-top: 1px solid var(--line);
+    color: var(--dim); display: flex; justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+  <div class="sec">
+    <div class="row">
+      <span class="dot off" id="dot"></span>
+      <span class="val" id="status">Starting…</span>
+      <input type="number" id="port" min="1024" max="65535">
+      <button id="restart">Restart</button>
+      <button id="reload" title="Re-read bridge.jsx and main.js from disk">↻</button>
+    </div>
+    <div class="row">
+      <span class="label">Project</span>
+      <span class="val" id="project">—</span>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="row">
+      <span class="label">Sandbox</span>
+      <span class="val" id="sandboxPath">(none set)</span>
+    </div>
+    <div class="row">
+      <button id="setSandbox" disabled>Use current project as sandbox</button>
+    </div>
+    <div class="row">
+      <label class="row" style="gap:5px;cursor:pointer">
+        <input type="checkbox" id="guardToggle">
+        <span>Guard writes to sandbox only</span>
+      </label>
+    </div>
+    <div class="guard locked" id="guardState"></div>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="foot">
+    <span id="count">0 calls</span>
+    <button id="clear" style="padding:0 6px">Clear</button>
+  </div>
+
+<script src="js/main.js"></script>
+</body>
+</html>

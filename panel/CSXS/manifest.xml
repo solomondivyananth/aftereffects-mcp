@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<ExtensionManifest xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	Version="7.0"
+	ExtensionBundleId="com.aeclaudebridge"
+	ExtensionBundleVersion="0.1.0"
+	ExtensionBundleName="Claude Bridge">
+
+	<ExtensionList>
+		<Extension Id="com.aeclaudebridge.panel" Version="0.1.0" />
+	</ExtensionList>
+
+	<ExecutionEnvironment>
+		<HostList>
+			<!-- AE 2022 (22.0) through anything newer -->
+			<Host Name="AEFT" Version="[22.0,99.9]" />
+		</HostList>
+		<LocaleList>
+			<Locale Code="All" />
+		</LocaleList>
+		<RequiredRuntimeList>
+			<RequiredRuntime Name="CSXS" Version="9.0" />
+		</RequiredRuntimeList>
+	</ExecutionEnvironment>
+
+	<DispatchInfoList>
+		<Extension Id="com.aeclaudebridge.panel">
+			<DispatchInfo>
+				<Resources>
+					<MainPath>./index.html</MainPath>
+					<ScriptPath>./jsx/bridge.jsx</ScriptPath>
+					<CEFCommandLine>
+						<Parameter>--enable-nodejs</Parameter>
+						<Parameter>--mixed-context</Parameter>
+						<Parameter>--allow-file-access</Parameter>
+						<Parameter>--allow-file-access-from-files</Parameter>
+					</CEFCommandLine>
+				</Resources>
+				<Lifecycle>
+					<AutoVisible>true</AutoVisible>
+				</Lifecycle>
+				<UI>
+					<Type>Panel</Type>
+					<Menu>Claude Bridge</Menu>
+					<Geometry>
+						<Size><Height>420</Height><Width>320</Width></Size>
+						<MinSize><Height>240</Height><Width>260</Width></MinSize>
+					</Geometry>
+				</UI>
+			</DispatchInfo>
+		</Extension>
+	</DispatchInfoList>
+</ExtensionManifest>
