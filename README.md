@@ -108,7 +108,11 @@ switched on.
 Reads and renders work on whatever project is open. **Writes are refused unless
 the open project is the one you designated as the sandbox.** Only a human can
 change that, from the panel UI — there is deliberately no tool that unlocks it,
-so a model cannot talk its way past the guard.
+so a model working through these tools cannot talk its way past the guard.
+
+(It is not a sandbox against an agent that already controls your desktop — one
+with shell or Accessibility access can untick the box just as you would. See
+[SECURITY.md](SECURITY.md).)
 
 Project-level operations (`ae_new_project`, `ae_open_project`) are refused
 outright while the guard is on: they close the current project, and a path

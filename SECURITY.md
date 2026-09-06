@@ -22,6 +22,18 @@ processes. Treat the bridge as equivalent to a local shell.
   the designated sandbox. Only a human can lift this, from the panel UI; no tool
   can unlock it.
 
+### What the sandbox guard does not cover
+
+The guard stops an AI agent that is using **only the MCP tools** in this project:
+no tool can disable it, so a model cannot unlock itself no matter what it is
+asked or told.
+
+It does **not** stop an agent that also has general control of your desktop. An
+agent with macOS Accessibility permissions, shell access, or the ability to edit
+`~/.ae-mcp-bridge.json` can turn the guard off the same way you would. Treat the
+guard as protection against a tool-scoped agent overstepping, not as a sandbox
+against an adversary who already controls the machine.
+
 `GET /alive` is the one unauthenticated endpoint. It returns a liveness flag and
 version only, and reveals nothing about the machine or the open project.
 
