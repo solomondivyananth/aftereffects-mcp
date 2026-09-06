@@ -67,6 +67,15 @@ a background `aerender` job that doesn't freeze the app.
 Requires **After Effects 2022 (22.0)+**, **Node.js 18+**, and macOS.
 `ffmpeg` is optional but recommended — it powers motion review.
 
+**From npm:**
+
+```bash
+npx aftereffects-mcp-install       # installs the After Effects panel
+claude mcp add after-effects -- npx -y aftereffects-mcp
+```
+
+**From source** (do this if you want to hack on it):
+
 ```bash
 git clone https://github.com/solomondivyananth/aftereffects-mcp.git
 cd aftereffects-mcp

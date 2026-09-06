@@ -1,0 +1,35 @@
+{
+  "name": "aftereffects-mcp",
+  "version": "0.1.0",
+  "description": "Read, view and edit a live Adobe After Effects project from any MCP client",
+  "mcpName": "io.github.solomondivyananth/aftereffects-mcp",
+  "license": "MIT",
+  "author": "Solomon Divyananth",
+  "homepage": "https://github.com/solomondivyananth/aftereffects-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/solomondivyananth/aftereffects-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/solomondivyananth/aftereffects-mcp/issues"
+  },
+  "keywords": [
+    "mcp", "model-context-protocol", "mcp-server",
+    "after-effects", "adobe-after-effects", "adobe",
+    "extendscript", "cep", "motion-graphics",
+    "animation", "video", "automation", "ai", "claude"
+  ],
+  "type": "commonjs",
+  "main": "mcp/ae-mcp.js",
+  "bin": {
+    "aftereffects-mcp": "mcp/ae-mcp.js",
+    "aftereffects-mcp-install": "bin/install-panel.js"
+  },
+  "files": ["mcp/", "panel/", "bin/", "install.sh", "sync.sh", "README.md", "SECURITY.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "os": ["darwin"],
+  "dependencies": {},
+  "scripts": {
+    "postinstall": "node -e \"console.log('\\naftereffects-mcp: run npx aftereffects-mcp-install to install the After Effects panel.\\n')\""
+  }
+}
