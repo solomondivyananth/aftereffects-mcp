@@ -18,8 +18,8 @@
   var path = require('path');
   var os = require('os');
 
-  var statePath = path.join(os.homedir(), '.ae-claude-bridge.json');
-  var frameDir = path.join(os.homedir(), '.ae-claude-bridge', 'frames');
+  var statePath = path.join(os.homedir(), '.ae-mcp-bridge.json');
+  var frameDir = path.join(os.homedir(), '.ae-mcp-bridge', 'frames');
   var state = { sandboxPath: null, guardEnabled: true, port: DEFAULT_PORT, token: null };
   var writeFns = null;          // filled in from the JSX side on boot
   var projectFns = [];          // ops that swap the open project entirely
@@ -114,7 +114,7 @@
       return Promise.reject(new Error(
         '"' + fn + '" closes the open project, which the sandbox guard cannot make ' +
         'safe by checking a path. Uncheck "Guard writes to sandbox only" in the ' +
-        'Claude Bridge panel to allow project-level operations.'));
+        'AE MCP Bridge panel to allow project-level operations.'));
     }
 
     return callBridge('project_info', {}).then(function (info) {
@@ -122,7 +122,7 @@
         throw new Error(
           'Sandbox guard is on but no sandbox project is set. Open the project you ' +
           'want Claude to edit, then click "Use current project as sandbox" in the ' +
-          'Claude Bridge panel — or turn the guard off there.');
+          'AE MCP Bridge panel — or turn the guard off there.');
       }
       if (!info.projectPath) {
         throw new Error(
@@ -133,7 +133,7 @@
         throw new Error(
           'Guard refused the edit. Open project is "' + info.projectPath + '" but the ' +
           'sandbox is "' + state.sandboxPath + '". Reads and renders still work. To edit ' +
-          'this project, set it as the sandbox or unlock the guard in the Claude Bridge panel.');
+          'this project, set it as the sandbox or unlock the guard in the AE MCP Bridge panel.');
       }
     });
   }

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <ExtensionManifest xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	Version="7.0"
-	ExtensionBundleId="com.aeclaudebridge"
+	ExtensionBundleId="com.aemcpbridge"
 	ExtensionBundleVersion="0.1.0"
-	ExtensionBundleName="Claude Bridge">
+	ExtensionBundleName="AE MCP Bridge">
 
 	<ExtensionList>
-		<Extension Id="com.aeclaudebridge.panel" Version="0.1.0" />
+		<Extension Id="com.aemcpbridge.panel" Version="0.1.0" />
 	</ExtensionList>
 
 	<ExecutionEnvironment>
@@ -23,7 +23,7 @@
 	</ExecutionEnvironment>
 
 	<DispatchInfoList>
-		<Extension Id="com.aeclaudebridge.panel">
+		<Extension Id="com.aemcpbridge.panel">
 			<DispatchInfo>
 				<Resources>
 					<MainPath>./index.html</MainPath>
@@ -40,7 +40,7 @@
 				</Lifecycle>
 				<UI>
 					<Type>Panel</Type>
-					<Menu>Claude Bridge</Menu>
+					<Menu>AE MCP Bridge</Menu>
 					<Geometry>
 						<Size><Height>420</Height><Width>320</Width></Size>
 						<MinSize><Height>240</Height><Width>260</Width></MinSize>

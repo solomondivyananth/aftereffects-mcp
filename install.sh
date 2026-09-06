@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Installs the Claude Bridge CEP panel into After Effects.
+# Installs the AE MCP Bridge CEP panel into After Effects.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXT_ID="com.aeclaudebridge"
+EXT_ID="com.aemcpbridge"
 EXT_DIR="$HOME/Library/Application Support/Adobe/CEP/extensions"
 TARGET="$EXT_DIR/$EXT_ID"
 
@@ -50,7 +50,7 @@ Installed.
 
 Next:
   1. Quit and relaunch After Effects (PlayerDebugMode is read at launch).
-  2. Window ▸ Extensions ▸ Claude Bridge — the panel should say
+  2. Window ▸ Extensions ▸ AE MCP Bridge — the panel should say
      "Listening on 127.0.0.1:7788".
   3. Open the project you want Claude to work on and click
      "Use current project as sandbox".

@@ -1,74 +1,181 @@
-# AE Claude Bridge
+# AE MCP Bridge
 
-Claude Code reads, views and edits an open After Effects project in real time.
+**Let an AI actually work in After Effects — read the project, look at rendered
+frames, and change keyframes, expressions and effects while the app is open.**
+
+Not a code generator that hands you a `.jsx` to run. A live connection to the
+running application: the model inspects your real comp, renders a real frame,
+makes a real edit, then re-renders to check its own work.
 
 ```
-Claude Code ──stdio──► mcp/ae-mcp.js ──HTTP :7788──► CEP panel in AE ──evalScript──► AE DOM
+MCP client ──stdio──► mcp/ae-mcp.js ──HTTP :7788──► CEP panel in AE ──evalScript──► AE DOM
 ```
 
-- **Read** — project structure, layer stacks, every property, keyframe and expression.
-- **View** — `saveFrameToPng` renders frames that come back to Claude as images.
-- **Edit** — properties, keyframes, expressions, effects, layers. Every call is one
-  `beginUndoGroup`, so anything Claude does is a single ⌘Z.
+Works with [Claude Code](https://claude.com/claude-code) or any client that
+speaks the [Model Context Protocol](https://modelcontextprotocol.io). Nothing in
+the bridge is client-specific.
 
-## Requirements
+MIT licensed · macOS · After Effects 2022+ · zero npm dependencies
 
-- After Effects 2022 (22.0) or newer — CEP 11/12 with ExtendScript
-- Node.js 18+ (the MCP server has zero dependencies)
-- macOS. Windows is not supported yet: the installer, `sips` downscaling and the
-  CEP paths are macOS-specific, though the bridge and MCP server are portable.
-- Optional: `ffmpeg` for `ae_review_motion` contact sheets and MP4s
+> Not affiliated with or endorsed by Adobe or Anthropic.
 
-## Security
+---
 
-The bridge can execute arbitrary ExtendScript inside After Effects. It binds
-loopback only and requires a shared secret (generated on first run into
-`~/.ae-claude-bridge.json`) on every request, refuses any request carrying an
-`Origin`/`Referer` header, and requires `Content-Type: application/json`.
-Read [SECURITY.md](SECURITY.md) before changing anything in the request path.
+## What this makes possible
+
+**Read a project you didn't build.** Ask what's animating in a 40-layer comp and
+get an answer grounded in the actual property tree — keyframe times, ease
+influences, expression source, effect parameters — rather than a guess from
+layer names.
+
+**Let the model see.** `saveFrameToPng` renders come back as images. The model
+looks at the frame instead of reasoning blind about coordinates. Ask "is the
+logo colliding with the lower third at 4 seconds?" and it can check.
+
+**Edit with a real undo story.** Every call runs inside one
+`beginUndoGroup`/`endUndoGroup`. Anything the model does is a single ⌘Z. There
+is no half-applied state to clean up.
+
+**Judge motion, not just numbers.** `ae_review_motion` samples a time range,
+stitches an MP4, and returns a contact sheet — so timing and easing can be
+evaluated as motion rather than as keyframe values that merely look correct.
+
+**Build, not just tweak.** Create projects and comps, import footage, add and
+animate layers, precompose, duplicate a master into 9×16 / 1×1 / 16×9, and queue
+a background `aerender` job that doesn't freeze the app.
+
+### Things it is genuinely good at
+
+- Auditing a comp: what animates, where, driven by what
+- Motion graphics automation — applying one consistent change across many layers,
+  many comps, or a whole campaign of format variants
+- Format variants from a finished master
+- Expression authoring, with After Effects validating the syntax on write
+- Catching continuity mistakes by looking at frames, not just properties
+
+### Things it is not good at
+
+- Taste. It can match an existing ease curve; it cannot tell you the ad is boring.
+- Anything unscriptable — Roto Brush, Content-Aware Fill, mocha tracking, puppet
+  pins. The ExtendScript DOM barely reaches these.
+- Real-time playback. It sees sampled frames, never a live preview.
+
+---
 
 ## Install
 
+Requires **After Effects 2022 (22.0)+**, **Node.js 18+**, and macOS.
+`ffmpeg` is optional but recommended — it powers motion review.
+
 ```bash
+git clone https://github.com/USER/aftereffects-mcp.git
+cd aftereffects-mcp
 ./install.sh              # symlink the panel, enable unsigned extensions
-./install.sh --copy       # copy instead, if AE ignores the symlink
-./install.sh --global     # also register the MCP server for every directory
 ```
 
-Then **relaunch After Effects** (PlayerDebugMode is read at launch) and open
-**Window ▸ Extensions ▸ Claude Bridge**. The panel should show a green dot and
-`Listening on 127.0.0.1:7788`.
+Then **relaunch After Effects** (`PlayerDebugMode` is read at launch) and open
+**Window ▸ Extensions ▸ AE MCP Bridge**. A green dot and
+`Listening on 127.0.0.1:7788` means it's ready.
 
-## The sandbox guard
+| Flag | |
+|---|---|
+| `./install.sh` | symlink install — edits in the repo are live |
+| `./install.sh --copy` | real copy, for when AE won't follow a symlink (use `./sync.sh` after edits) |
+| `./install.sh --global` | also register the MCP server for every directory |
 
-Reads and renders always work on whatever project is open. **Writes are refused
-unless the open project is the designated sandbox.** Only you can change that,
-from the panel — there is no tool that lifts the guard:
+The included `.mcp.json` registers the server for this project directory, so
+Claude Code picks the tools up automatically when run from the repo.
 
-- *Use current project as sandbox* — pins writes to the project you have open.
-- *Guard writes to sandbox only* — uncheck to let Claude edit any open project.
+---
 
-Settings live in `~/.ae-claude-bridge.json`.
+## Safety
+
+This bridge executes arbitrary ExtendScript inside After Effects. That is
+powerful and worth being deliberate about, so two independent protections ship
+switched on.
+
+### The sandbox guard
+
+Reads and renders work on whatever project is open. **Writes are refused unless
+the open project is the one you designated as the sandbox.** Only a human can
+change that, from the panel UI — there is deliberately no tool that unlocks it,
+so a model cannot talk its way past the guard.
+
+Project-level operations (`ae_new_project`, `ae_open_project`) are refused
+outright while the guard is on: they close the current project, and a path
+comparison cannot make that safe. They also refuse to run unless you say
+explicitly what happens to unsaved work — no silent data loss, and never a modal
+dialog that would deadlock the bridge.
+
+### Network protection
+
+The server binds loopback only and requires a 256-bit token, generated on first
+run into `~/.ae-mcp-bridge.json` (mode `0600`). It also refuses any request
+carrying an `Origin` or `Referer` header, and requires
+`Content-Type: application/json`.
+
+Those three checks close three different routes to the same hole. Without them,
+**any web page you happened to be visiting could drive After Effects** — a
+cross-origin POST with `Content-Type: text/plain` is a CORS "simple request", so
+the browser sends it with no preflight. The attacker can't read the response,
+but by then the code has already run. See [SECURITY.md](SECURITY.md).
+
+---
 
 ## Tools
 
-| Tool | |
-|---|---|
-| `ae_project_info` | comps, sizes, frame rates, active comp — start here |
-| `ae_comp_tree` | layer stack with transforms, timing, parenting, effects |
-| `ae_layer_detail` | full property tree: values, keyframes, expressions |
-| `ae_selection` | what the user has selected right now |
-| `ae_render_frame` | render frames to PNG and look at them |
-| `ae_set_property` | set a value, static or keyframed |
-| `ae_add_keyframes` | write a run of keys with easing |
-| `ae_set_expression` / `ae_clear_expression` | expressions, validated by AE |
-| `ae_apply_effect` | apply an effect and set parameters |
-| `ae_create_layer` / `ae_delete_layer` / `ae_set_layer_props` | layer management |
-| `ae_run_jsx` | escape hatch: arbitrary ExtendScript |
+29 tools across four groups.
+
+**Read** — `ae_project_info` · `ae_comp_tree` · `ae_layer_detail` ·
+`ae_find_animation` · `ae_selection` · `ae_list_items`
+
+**See** — `ae_render_frame` · `ae_review_motion`
+
+**Edit** — `ae_set_property` · `ae_add_keyframes` · `ae_set_expression` ·
+`ae_clear_expression` · `ae_apply_effect` · `ae_create_layer` ·
+`ae_delete_layer` · `ae_set_layer_props` · `ae_run_jsx`
+
+**Author** — `ae_create_comp` · `ae_set_comp_settings` · `ae_duplicate_comp` ·
+`ae_import_file` · `ae_precompose` · `ae_delete_item` · `ae_new_project` ·
+`ae_open_project` · `ae_save_project` · `ae_render_video` · `ae_render_status` ·
+`ae_render_cancel`
 
 Property paths are arrays: `["Transform","Position"]`,
-`["Effects","Gaussian Blur","Blurriness"]`. Names or matchNames both work; a
-wrong segment returns the list of valid children.
+`["Effects","Gaussian Blur","Blurriness"]`. Names or matchNames both work, and a
+wrong segment returns the list of valid children instead of a bare failure — so
+the model corrects itself rather than guessing.
+
+---
+
+## Design notes
+
+Four things in the After Effects DOM will bite anyone building on it. They cost
+real debugging time here, so they're written down.
+
+**`elided` does not mean "ignore".** `PropertyBase.elided` marks a group that
+isn't drawn as its own row in the timeline — `Animators`, `Selectors`,
+`Properties` on a text layer are all elided. Their children are real, and are
+frequently where the animation lives. Skipping them made a typewriter-animated
+text layer report as "not animated", which produced a confidently wrong edit.
+Flatten elided groups; never skip them.
+
+**Transform is not where animation lives.** A layer can be fully animated with an
+empty Transform group — text animators, shape trim paths, mask paths and effect
+parameters all animate independently. `ae_comp_tree` returns `animatedProperties`
+from a full-tree scan for exactly this reason.
+
+**`saveFrameToPng` is asynchronous.** It returns roughly 450 ms before the PNG is
+on disk, and the file appears at size 0 first. Both sides of the bridge poll each
+frame until it exists and has stopped growing.
+
+**`Folder.temp` is a per-app sandbox.** Anything After Effects writes there is
+unreadable from outside the AE process. Frames go to `~/.ae-mcp-bridge/frames/`.
+
+And one that isn't about the DOM: **stills lie about motion.** A frame sampled
+mid-reveal is indistinguishable from a hard cut. That mistake is the reason
+`ae_review_motion` exists.
+
+---
 
 ## Layout
 
@@ -76,53 +183,64 @@ wrong segment returns the list of valid children.
 panel/           CEP extension loaded by After Effects
   CSXS/manifest.xml
   index.html     status, sandbox controls, live call log
-  js/main.js     HTTP server, evalScript dispatch, guard enforcement
-  jsx/bridge.jsx everything that touches the AE DOM (ES3)
+  js/main.js     HTTP server, auth, guard enforcement, aerender jobs
+  jsx/bridge.jsx everything touching the AE DOM (ExtendScript, ES3)
 mcp/ae-mcp.js    MCP server — zero dependencies, stdio JSON-RPC
-.mcp.json        registers the server for this project
+install.sh       panel install + PlayerDebugMode
+sync.sh          push local edits into a --copy install
 ```
 
-## Notes and limits
+`bridge.jsx` is **ES3** — no `let`, `const`, arrow functions or native `JSON`
+(there's a polyfill at the top). Responses over 100 KB spill to a temp file,
+because `evalScript`'s return channel can't carry them.
 
-- `bridge.jsx` is **ES3**. No `let`, `const`, arrow functions or native `JSON`
-  (a polyfill is at the top of the file).
-- Responses over 100 KB spill to a temp file and are read back by the panel —
-  `evalScript`'s return channel can't carry them.
-- After Effects is single-threaded: during a RAM preview, a foreground render or
-  any modal dialog the bridge is unresponsive and calls time out at 120s.
-- `ae_render_frame` downscales via the comp's resolution factor, then again with
-  `sips` to fit `AE_BRIDGE_MAX_PX` (default 1024). Set `downscale: 1` for detail.
-- **`saveFrameToPng` is asynchronous.** It returns ~450ms before the PNG is on
-  disk, and the file appears at size 0 first. Both the panel and the MCP server
-  poll each frame until it exists and has stopped growing — don't remove either
-  guard, they cover different version-skew cases.
-- Frames go to `~/.ae-claude-bridge/frames/`, not `Folder.temp`: AE's temp dir is
-  a per-app sandbox that processes outside After Effects cannot read.
-- `sips` scales beside the source file rather than through the OS temp dir, which
-  is not writable in every context this server gets spawned in.
-- Port is configurable in the panel; the MCP side reads `AE_BRIDGE_PORT`.
+---
 
-## Traps worth remembering
+## FAQ
 
-**`elided` does not mean "ignore".** In the AE DOM, `PropertyBase.elided` marks a
-group that isn't drawn as its own row in the timeline — `Animators`, `Selectors`,
-`Properties` on a text layer all have `elided === true`. Their children are real
-and are frequently where the animation lives. `_walk` flattens elided groups
-rather than skipping them; skipping them made a typewriter-animated text layer
-report as "not animated", which produced a wrong edit to a real client project.
+**What is this actually for?**
+Automating the repetitive half of motion graphics work — audits, bulk edits,
+format variants, expression authoring — while you keep the creative decisions.
+It is a scripting layer you talk to, not a replacement for a motion designer.
 
-**Transform is not where animation lives.** A layer can be fully animated with an
-empty Transform group: text animators, shape trim paths, mask paths and effect
-parameters all animate independently. `comp_tree` returns `animatedProperties`
-from a full-tree scan, and `ae_find_animation` does it on demand. Never conclude
-"this layer isn't animated" from transform keyframe counts alone.
+**Does this need an API key?**
+No. The bridge holds no credentials. Your MCP client brings its own model.
 
-**Stills lie about motion.** A frame sampled mid-reveal is indistinguishable from
-a hard cut. Use `ae_review_motion` before judging timing.
+**Does it work with clients other than Claude Code?**
+Yes — it's a standard MCP stdio server. Nothing in it is Claude-specific.
 
-## Not built yet
+**Will it edit my project without asking?**
+Not unless you point the sandbox at that project, or switch the guard off. Reads
+and renders always work; writes are gated.
 
-- Change notifications — the panel polls the project every 3s for its own display
-  but doesn't push events to Claude, so Claude re-reads on demand.
-- Motion review is a contact sheet of stills; no video round-trip via `aerender`.
-- Unsigned. Shipping to other machines needs ZXP signing.
+**Can it render video?**
+Yes, via `aerender` as a background job that doesn't block the app. It saves the
+project first, because `aerender` reads the `.aep` from disk.
+
+**Does it work on Windows?**
+Not yet. The bridge and MCP server are portable, but the installer, the `sips`
+image downscaling and the CEP paths are macOS-specific. PRs welcome.
+
+**Why CEP and not UXP?**
+After Effects 2026 ships UXP, but it hosts only Adobe's own plugins — there's no
+public AE DOM API through it yet. CEP with ExtendScript is the only route to the
+full object model today.
+
+**Is the panel signed?**
+No. `install.sh` enables `PlayerDebugMode`, which is how unsigned extensions load
+during development. Distributing to non-developers would need ZXP signing.
+
+---
+
+## Status
+
+**v0.1 — working, and honest about its edges.** The read, view and edit loop is
+proven against real production projects. The authoring and render tools are
+built and wired but have had less mileage. No tests or CI yet.
+
+Contributions welcome, particularly Windows support, a test suite, and ZXP
+packaging.
+
+## License
+
+[MIT](LICENSE)

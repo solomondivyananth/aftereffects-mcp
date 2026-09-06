@@ -3,7 +3,7 @@
  * ae-mcp.js — MCP server exposing After Effects to Claude Code.
  *
  * Zero dependencies. Speaks newline-delimited JSON-RPC on stdio and forwards
- * every tool call to the Claude Bridge panel running inside After Effects.
+ * every tool call to the AE MCP Bridge panel running inside After Effects.
  */
 
 'use strict';
@@ -15,7 +15,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const PORT = parseInt(process.env.AE_BRIDGE_PORT || '7788', 10);
-const STATE_PATH = path.join(os.homedir(), '.ae-claude-bridge.json');
+const STATE_PATH = path.join(os.homedir(), '.ae-mcp-bridge.json');
 
 /* The panel generates a shared secret on first run and stores it here. Without
    it the bridge refuses every call — which is what stops a web page you happen
@@ -27,7 +27,7 @@ function bridgeToken() {
     if (t) { return t; }
   } catch (e) { /* fall through */ }
   throw new Error(
-    'No bridge token found. Open the Claude Bridge panel in After Effects once — ' +
+    'No bridge token found. Open the AE MCP Bridge panel in After Effects once — ' +
     'it writes a token to ' + STATE_PATH + ' on first run. ' +
     'You can also set AE_BRIDGE_TOKEN.');
 }
@@ -74,8 +74,8 @@ function bridge(fn, args) {
     req.on('error', (e) => {
       if (e.code === 'ECONNREFUSED') {
         reject(new Error(
-          'Cannot reach the Claude Bridge on ' + HOST + ':' + PORT + '. Open After Effects ' +
-          'and show the panel: Window ▸ Extensions ▸ Claude Bridge.'));
+          'Cannot reach the AE MCP Bridge on ' + HOST + ':' + PORT + '. Open After Effects ' +
+          'and show the panel: Window ▸ Extensions ▸ AE MCP Bridge.'));
       } else { reject(e); }
     });
     req.write(body);
@@ -551,7 +551,7 @@ async function reviewMotion(args) {
 
   const result = await bridge('render_frame', req);
 
-  const work = path.join(os.homedir(), '.ae-claude-bridge', 'review_' + Date.now());
+  const work = path.join(os.homedir(), '.ae-mcp-bridge', 'review_' + Date.now());
   fs.mkdirSync(work, { recursive: true });
   const kept = [];
   result.frames.forEach((f, i) => {

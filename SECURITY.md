@@ -11,7 +11,7 @@ processes. Treat the bridge as equivalent to a local shell.
 - **Loopback only.** The server binds `127.0.0.1` and is never exposed on a network
   interface.
 - **Shared-secret auth.** A 256-bit token is generated on first run and stored in
-  `~/.ae-claude-bridge.json` (mode 0600). Every request must carry it in the
+  `~/.ae-mcp-bridge.json` (mode 0600). Every request must carry it in the
   `X-AE-Bridge-Token` header, compared in constant time.
 - **Browser requests are refused.** Any request carrying an `Origin` or `Referer`
   header is rejected. A local tool client never sends these; a web page always
