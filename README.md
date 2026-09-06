@@ -68,7 +68,7 @@ Requires **After Effects 2022 (22.0)+**, **Node.js 18+**, and macOS.
 `ffmpeg` is optional but recommended — it powers motion review.
 
 ```bash
-git clone https://github.com/USER/aftereffects-mcp.git
+git clone https://github.com/solomondivyananth/aftereffects-mcp.git
 cd aftereffects-mcp
 ./install.sh              # symlink the panel, enable unsigned extensions
 ```
