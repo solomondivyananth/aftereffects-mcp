@@ -185,7 +185,7 @@ centre anchor, copy to comp)
 
 ### Skills
 
-Nine skills ship in `skills/`. Claude Code loads them automatically in this
+Twelve skills ship in `skills/`. Claude Code loads them automatically in this
 repo, and every MCP client gets them as prompts of the same name.
 
 | Skill | What it teaches |
@@ -197,7 +197,10 @@ repo, and every MCP client gets them as prompts of the same name.
 | `ae-transitions` | whips, punches, shape, mask, luma and effect wipes |
 | `ae-morph` | shape, mask, letter and gooey morphs that don't twist |
 | `ae-camera-3d` | camera rigs, depth of field, lights, shadows, renderers, 3D models |
+| `ae-typography` | text animators and selectors: word reveals, waves, scatter, typing, text on a ring |
+| `ae-ui-motion` | app and product-launch motion: layered UI in 3D, streaming answers, devices, logo moments |
 | `ae-deliver` | pre-flight, format variants with safe areas, renders, verifying the file |
+| `ae-reference-breakdown` | turn a reference film into a beat map and rebuildable techniques |
 | `video-reference-compare` | frame-by-frame comparison of a render against a reference |
 
 Effect, parameter and menu names in the skills were checked against a live

@@ -22,7 +22,9 @@ agent owns; add a line to the table instead of taking one.
 | ae-transitions | Claude | done, names and recipes verified in AE |
 | ae-morph | Claude | done |
 | ae-camera-3d | Claude | done, rig, lights, materials and focus expression verified in AE |
-| ae-typography (text animators, per-character, kinetic type systems) | open | |
+| ae-typography (text animators, per-character, kinetic type systems) | Claude | done, recipes built and rendered in AE |
+| ae-ui-motion (app and product launch motion: UI panels in 3D, streaming text, device mockups) | Claude | done |
+| ae-reference-breakdown (reverse-engineer a reference video into techniques and tool calls) | Claude | done, script tested on a 74 s reference |
 | ae-color (Lumetri, curves, LUTs, matching shots) | open | |
 | ae-audio-sync (audio to keyframes, beat markers, cutting to music) | open | |
 | ae-templates (Essential Graphics, MOGRT, controls for editors) | open | |
