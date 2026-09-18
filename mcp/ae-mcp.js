@@ -961,8 +961,12 @@ let buffer = '';
 let pending = 0;
 let stdinClosed = false;
 
+/* Once the client hangs up and nothing is in flight, stop — but never with
+   process.exit(): on a pipe, stdout writes are asynchronous, and exiting
+   would drop replies still being written (a 46-tool list is ~50 KB). Let the
+   event loop drain and Node exit on its own. */
 function maybeExit() {
-  if (stdinClosed && pending === 0) { process.exit(0); }
+  if (stdinClosed && pending === 0) { process.stdout.end(); }
 }
 
 function serve() {
