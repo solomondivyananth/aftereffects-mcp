@@ -157,7 +157,7 @@ but by then the code has already run. See [SECURITY.md](SECURITY.md).
 
 ## Tools
 
-46 tools, named and shaped after After Effects itself.
+47 tools, named and shaped after After Effects itself.
 
 **Read** — `ae_project_info` · `ae_comp_tree` · `ae_layer_detail` ·
 `ae_find_animation` · `ae_selection` · `ae_list_items` · `ae_catalog`
@@ -175,7 +175,7 @@ but by then the code has already run. See [SECURITY.md](SECURITY.md).
 centre anchor, copy to comp)
 
 **Project** — `ae_create_comp` · `ae_set_comp_settings` · `ae_duplicate_comp` ·
-`ae_precompose` · `ae_import_file` · `ae_item_action` · `ae_delete_item` ·
+`ae_precompose` · `ae_import_file` · `ae_item_action` · `ae_essential_graphics` · `ae_delete_item` ·
 `ae_new_project` · `ae_open_project` · `ae_save_project`
 
 **Render** — `ae_render_video` · `ae_render_status` · `ae_render_cancel` ·
@@ -185,7 +185,7 @@ centre anchor, copy to comp)
 
 ### Skills
 
-Twelve skills ship in `skills/`. Claude Code loads them automatically in this
+Sixteen skills ship in `skills/`. Claude Code loads them automatically in this
 repo, and every MCP client gets them as prompts of the same name.
 
 | Skill | What it teaches |
@@ -199,6 +199,10 @@ repo, and every MCP client gets them as prompts of the same name.
 | `ae-camera-3d` | camera rigs, depth of field, lights, shadows, renderers, 3D models |
 | `ae-typography` | text animators and selectors: word reveals, waves, scatter, typing, text on a ring |
 | `ae-ui-motion` | app and product-launch motion: layered UI in 3D, streaming answers, devices, logo moments |
+| `ae-color` | Lumetri grading, looks and LUTs without dialogs, brand tints, matching shots |
+| `ae-audio-sync` | beat finder (tempo, hits, grid) to comp markers, cutting and pulsing to music |
+| `ae-templates` | Controls nulls, Essential Graphics controls, `.mogrt` export, robust templates |
+| `ae-data-driven` | CSV/JSON as footage in expressions, charts, one version per row |
 | `ae-deliver` | pre-flight, format variants with safe areas, renders, verifying the file |
 | `ae-reference-breakdown` | turn a reference film into a beat map and rebuildable techniques |
 | `video-reference-compare` | frame-by-frame comparison of a render against a reference |

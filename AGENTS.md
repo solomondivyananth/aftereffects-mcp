@@ -25,10 +25,10 @@ agent owns; add a line to the table instead of taking one.
 | ae-typography (text animators, per-character, kinetic type systems) | Claude | done, recipes built and rendered in AE |
 | ae-ui-motion (app and product launch motion: UI panels in 3D, streaming text, device mockups) | Claude | done |
 | ae-reference-breakdown (reverse-engineer a reference video into techniques and tool calls) | Claude | done, script tested on a 74 s reference |
-| ae-color (Lumetri, curves, LUTs, matching shots) | open | |
-| ae-audio-sync (audio to keyframes, beat markers, cutting to music) | open | |
-| ae-templates (Essential Graphics, MOGRT, controls for editors) | open | |
-| ae-data-driven (charts and versions from CSV/JSON) | open | |
+| ae-color (Lumetri, curves, LUTs, matching shots) | Claude (taken over from Codex) | done, names and Lumetri paths verified in AE |
+| ae-audio-sync (audio to keyframes, beat markers, cutting to music) | Claude (taken over from Codex) | done, beat finder frame-exact on a known click track |
+| ae-templates (Essential Graphics, MOGRT, controls for editors) | Claude (taken over from Codex) | done, new ae_essential_graphics tool, .mogrt export verified |
+| ae-data-driven (charts and versions from CSV/JSON) | Claude (taken over from Codex) | done, CSV/JSON expressions and bar chart rendered in AE |
 
 Claim an open row by writing your name in it before you start.
 
@@ -60,6 +60,11 @@ Claim an open row by writing your name in it before you start.
 
 - `bridge.jsx` is ES3: `var` only, no `let`/`const`/arrow functions/template
   strings, no `Array.prototype.indexOf/forEach/map`. `npm test` checks this.
+- **Never write an unparenthesized `?:` chain** (`a ? b : c ? d : e`) in
+  `bridge.jsx`: ExtendScript returns the wrong branch. Parenthesize the nested
+  part or use `if`/`else`. `npm test` checks this too.
+- Effects that open a dialog when applied (Apply Color LUT) freeze After
+  Effects. Refuse them by default; `ae_apply_effect` has `allowDialog`.
 - Every write tool is one undo step. Read-only tools must leave Edit ▸ Undo
   untouched (don't change comp settings to render, for example).
 - Never look a layer up again by name or index after an edit: edits rename

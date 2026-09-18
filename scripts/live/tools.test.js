@@ -304,6 +304,16 @@ async function t(label, name, args, check) {
   await t('rename then keep working (layer found by object, not old name)', 'ae_set_layer_props', { comp: C, layer: 'Para', props: { name: 'Paragraph' } },
     (r) => !r.error && r.data.after.name === 'Paragraph');
   await t('  … renamed layer is addressable', 'ae_text', { comp: C, layer: 'Paragraph' }, (r) => !r.error);
+  await t('shape rect with position (ExtendScript ?: bug)', 'ae_shape', { comp: C, name: 'PosRect', shape: 'rect', size: [400, 200], position: [0, -100], fill: '#888888' });
+  for (const [mode, want] of [['fit', 480], ['fill', 540], ['width', 480], ['height', 540]]) {
+    await t('fit_to_comp ' + mode + ' = ' + want + '%', 'ae_layer_action', { comp: C, layer: 'PosRect', action: 'fit_to_comp', mode },
+      (r) => !r.error && Math.abs(r.data.results[0].scale - want) < 0.5);
+  }
+  await t('LUT effect refused (opens a dialog)', 'ae_apply_effect', { comp: C, layer: 'BG', effect: 'ADBE Apply Color LUT2' }, (r) => !!r.error && /dialog/.test(r.error));
+  await t('essential graphics add in order', 'ae_essential_graphics', { comp: C, action: 'add', properties: [
+    { layer: 'Title', path: ['Text', 'Source Text'], name: 'Headline' }, { layer: 'Ctrl', path: ['Transform', 'Opacity'], name: 'Fade' }] },
+    (r) => !r.error && r.data.controllers[0].name === 'Headline');
+  await t('essential graphics refuses a group', 'ae_essential_graphics', { comp: C, action: 'add', layer: 'Title', path: ['Transform'], name: 'x' }, (r) => !!r.error);
   await t('layer_action trim_to_work_area', 'ae_layer_action', { comp: C, layer: 'Title', action: 'trim_to_work_area' },
     (r) => !r.error && r.data.results[0].inPoint >= 0.33);
   await t('delete_item folder contents ok', 'ae_list_items', { kind: 'folder' }, (r) => !r.error && r.data.items.length >= 1);
@@ -312,7 +322,7 @@ async function t(label, name, args, check) {
   const pr = await rpc('prompts/get', { name: 'after-effects' });
   record('prompt served', !!(pr.result && /read → edit → look/.test(pr.result.messages[0].content.text)));
   const rs = await rpc('resources/read', { uri: 'ae://project' });
-  record('resource ae://project', !!(rs.result && /bridge-test/.test(rs.result.contents[0].text)));
+  record('resource ae://project', !!(rs.result && rs.result.contents[0].text.indexOf(p) !== -1));
 
   // --- read tools must leave Edit ▸ Undo untouched ---
   const count = async () => (await call('ae_comp_tree', { comp: C, animation: false, transforms: false, effects: false })).data.layers.length;
@@ -325,12 +335,18 @@ async function t(label, name, args, check) {
     const b = await count();
     await call('ae_create_layer', { comp: C, kind: 'null', options: { name: 'undo-probe' } });
     await call(tool, args);
+    /* Give After Effects an idle moment to register the last undo step;
+       without it a very fast undo occasionally lands before it exists. */
+    await new Promise((res) => setTimeout(res, 300));
     await call('ae_undo', {});
     const a = await count();
     record(label + ' leaves no undo step', a === b, b + ' → ' + a);
     if (a !== b) { await call('ae_delete_layer', { comp: C, layer: 'undo-probe' }); }
   }
 
+  /* Last: an export attaches an invisible undo step to the next edit. */
+  await t('essential graphics export .mogrt', 'ae_essential_graphics', { comp: C, action: 'export', file: path.join(out, 'test-template.mogrt'), overwrite: true },
+    (r) => !r.error && r.data.exists === true);
   proc.stdin.end();
   process.exit(finish());
 })();

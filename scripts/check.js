@@ -35,6 +35,30 @@ const code = jsx.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').repla
   if (m) { fail('bridge.jsx uses ' + what + ' (ES3 only): …' + code.substr(Math.max(0, m.index - 40), 80).replace(/\s+/g, ' ') + '…'); }
 });
 
+/* 2b. ExtendScript evaluates an unparenthesized conditional chain
+       (a ? b : c ? d : e) wrongly — it returns the wrong branch. Nested
+       conditionals must be parenthesized: a ? b : (c ? d : e). */
+{
+  const stripped = jsx.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length))
+    .replace(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (m) => '"' + ' '.repeat(m.length - 2) + '"')
+    .replace(/\/(?![*\/])(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n])+\/[gimsuy]*/g, (m) => ' '.repeat(m.length));
+  let depth = 0, line = 1;
+  const pending = {}, inElse = {};
+  for (const ch of stripped) {
+    if (ch === '\n') { line++; continue; }
+    if (ch === '(' || ch === '[' || ch === '{') { depth++; pending[depth] = false; inElse[depth] = false; continue; }
+    if (ch === ')' || ch === ']' || ch === '}') { pending[depth] = false; inElse[depth] = false; depth--; continue; }
+    if (ch === ';' || ch === ',') { pending[depth] = false; inElse[depth] = false; continue; }
+    if (ch === '?') {
+      if (inElse[depth]) { fail('bridge.jsx line ' + line + ': unparenthesized ?: chain — ExtendScript picks the wrong branch; wrap the nested part in ( )'); inElse[depth] = false; }
+      pending[depth] = true;
+      continue;
+    }
+    if (ch === ':' && pending[depth]) { pending[depth] = false; inElse[depth] = true; }
+  }
+}
+
 /* 3. Every tool routes to something that exists. */
 const cases = new Set([...jsx.matchAll(/case '([a-z_]+)':/g)].map((m) => m[1]));
 const nodeFns = new Set([...mainJs.matchAll(/^\s+([a-z_]+): (?:renderStart|function)/gm)].map((m) => m[1]));

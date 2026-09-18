@@ -78,7 +78,7 @@ var __AE_WRITE_FNS = 'set_property,add_keyframes,set_expression,clear_expression
     'duplicate_comp,import_file,precompose,delete_item,' +
     'edit_keyframes,undo,batch,markers,masks,shape,add_property,remove_property,' +
     'property_meta,text,layer_action,apply_preset,render_queue,menu_command,' +
-    'item_action';
+    'item_action,essential_graphics';
 
 /* Project-level operations. The guard treats these specially: they change
    which project is open, so a sandbox path cannot meaningfully protect them. */
@@ -226,6 +226,7 @@ function __aeDispatch(fn, a) {
         case 'menu_command':    return aeMenuCommand(a);
         case 'goto':            return aeGoto(a);
         case 'item_action':     return aeItemAction(a);
+        case 'essential_graphics': return aeEssentialGraphics(a);
         default: throw new Error('Unknown bridge function: ' + fn);
     }
 }
@@ -1128,8 +1129,18 @@ function aeClearExpression(a) {
     return res;
 }
 
+/* Effects that open a modal file dialog the moment they are applied. A
+   modal freezes After Effects (and the bridge) until a person clicks it. */
+var __DIALOG_EFFECTS = { 'ADBE Apply Color LUT2': 'Apply Color LUT', 'Apply Color LUT': 'Apply Color LUT' };
+
 function aeApplyEffect(a) {
     var comp = _findComp(a.comp);
+    if (__DIALOG_EFFECTS[a.effect] && a.allowDialog !== true) {
+        throw new Error('"' + __DIALOG_EFFECTS[a.effect] + '" opens a file dialog as soon as it is applied, which ' +
+            'freezes After Effects until someone clicks it. Use Lumetri Color (ADBE Lumetri) with its Look / ' +
+            'Input LUT, or an animation preset that already contains the LUT (ae_apply_preset). Pass ' +
+            'allowDialog: true only if a person is at the machine to pick the file.');
+    }
     var res = _eachLayer(comp, a, function (L) {
         var fx, e, k, sub;
         fx = L.property('ADBE Effect Parade');
@@ -2035,8 +2046,11 @@ function _addShapeItem(contents, spec) {
         throw new Error('shape must be rect, ellipse, star, polygon or path.');
     }
     if (spec.position && type !== 'path') {
-        _setP(prim, type === 'rect' ? 'ADBE Vector Rect Position' :
-              type === 'ellipse' ? 'ADBE Vector Ellipse Position' : 'ADBE Vector Star Position', spec.position, 'position');
+        /* A lookup, not a nested ?: — ExtendScript mis-parses nested
+           conditionals inside an argument list and passes the wrong name. */
+        var posName = { rect: 'ADBE Vector Rect Position', ellipse: 'ADBE Vector Ellipse Position',
+                        star: 'ADBE Vector Star Position', polygon: 'ADBE Vector Star Position' }[type];
+        _setP(prim, posName, spec.position, 'position');
     }
     if (spec.roundCorners !== undefined) {
         rc = c.addProperty('ADBE Vector Filter - RC');
@@ -2304,7 +2318,11 @@ function aeLayerAction(a) {
             tr = L.property('ADBE Transform Group');
             b = L.sourceRectAtTime(comp.time, false);
             var fx = comp.width / b.width, fy = comp.height / b.height, f;
-            f = a.mode === 'fill' ? Math.max(fx, fy) : a.mode === 'width' ? fx : a.mode === 'height' ? fy : Math.min(fx, fy);
+            /* Plain ifs: ExtendScript picks the wrong branch of a ?: chain. */
+            if (a.mode === 'fill') { f = Math.max(fx, fy); }
+            else if (a.mode === 'width') { f = fx; }
+            else if (a.mode === 'height') { f = fy; }
+            else { f = Math.min(fx, fy); }
             sc = tr.property('ADBE Scale').value;
             tr.property('ADBE Anchor Point').setValue([b.left + b.width / 2, b.top + b.height / 2].concat(sc.length === 3 ? [0] : []));
             tr.property('ADBE Scale').setValue([f * 100, f * 100].concat(sc.length === 3 ? [sc[2]] : []));
@@ -2643,4 +2661,80 @@ function aeItemAction(a) {
                         'set_proxy, clear_proxy, interpret, open, missing, remove_unused, consolidate or reduce.');
     }
     return _itemInfo(it);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Essential Graphics / Motion Graphics templates                      */
+/* ------------------------------------------------------------------ */
+
+function _egControllers(comp) {
+    var out = [], i, n = 0;
+    try { n = comp.motionGraphicsTemplateControllerCount; } catch (e) { return out; }
+    for (i = 1; i <= n; i++) {
+        try { out.push({ index: i, name: comp.getMotionGraphicsTemplateControllerName(i) }); } catch (e2) {}
+    }
+    return out;
+}
+
+function aeEssentialGraphics(a) {
+    var comp = _findComp(a.comp), action = a.action || 'list', list, i, p, L, f, added = [];
+    if (typeof comp.exportAsMotionGraphicsTemplate !== 'function') {
+        throw new Error('Essential Graphics scripting needs After Effects CC 2019 or later.');
+    }
+    if (action === 'list') {
+        return { comp: comp.name, templateName: comp.motionGraphicsTemplateName || null, controllers: _egControllers(comp) };
+    }
+    if (action === 'add') {
+        list = a.properties instanceof Array ? a.properties : [{ layer: a.layer, path: a.path, name: a.name }];
+        /* After Effects puts each new control at the top of the panel, so
+           add in reverse: the first one listed ends up first. */
+        for (i = list.length - 1; i >= 0; i--) {
+            L = _findLayer(comp, list[i].layer);
+            p = _findProp(L, list[i].path);
+            if (!p.canAddToMotionGraphicsTemplate(comp)) {
+                throw new Error('"' + p.name + '" on "' + L.name + '" cannot go in the Essential Graphics panel. ' +
+                    'Supported: Source Text, colours, checkboxes, sliders, angles, points, and other simple values.');
+            }
+            if (list[i].name) { p.addToMotionGraphicsTemplateAs(comp, String(list[i].name)); }
+            else { p.addToMotionGraphicsTemplate(comp); }
+            added.unshift({ layer: L.name, property: p.name, as: list[i].name || p.name });
+        }
+        return { comp: comp.name, added: added, controllers: _egControllers(comp) };
+    }
+    if (action === 'set_name') {
+        comp.motionGraphicsTemplateName = String(a.name);
+        return { comp: comp.name, templateName: comp.motionGraphicsTemplateName };
+    }
+    if (action === 'open') {
+        comp.openInEssentialGraphics();
+        return { comp: comp.name, opened: true };
+    }
+    if (action === 'export') {
+        /* exportAsMotionGraphicsTemplate takes a FOLDER and names the file
+           after the template. Accept a folder, or a path ending in .mogrt
+           (its folder is used and its name becomes the template name). */
+        if (!a.file) { throw new Error('Pass "file": a folder, or a path ending in .mogrt.'); }
+        if (!_egControllers(comp).length) { throw new Error('"' + comp.name + '" has no Essential Graphics controls yet. Add some first.'); }
+        var target = new File(String(a.file)), folder, tname, compId = comp.id;
+        if (/\.mogrt$/i.test(target.name)) {
+            folder = target.parent;
+            comp.motionGraphicsTemplateName = decodeURI(target.name).replace(/\.mogrt$/i, '');
+        } else {
+            folder = new Folder(String(a.file));
+        }
+        if (!folder.exists) { folder.create(); }
+        if (!comp.motionGraphicsTemplateName) { comp.motionGraphicsTemplateName = comp.name; }
+        tname = comp.motionGraphicsTemplateName;
+        if (!comp.exportAsMotionGraphicsTemplate(a.overwrite === true, folder.fsName)) {
+            throw new Error('Export failed. Is the folder writable, or does "' + tname + '.mogrt" exist there (pass overwrite: true)?');
+        }
+        /* The export invalidates the comp object; don't touch it again. */
+        f = new File(folder.fsName + '/' + tname + '.mogrt');
+        return { comp: _findComp(compId).name, exported: f.fsName, exists: f.exists, templateName: tname,
+                 note: 'After an export, After Effects attaches one invisible step to the next edit, so the ' +
+                       'first Edit ▸ Undo after that edit may appear to do nothing. Check with ae_comp_tree ' +
+                       'before undoing again.' };
+    }
+    throw new Error('action must be list, add, set_name, open or export.');
 }

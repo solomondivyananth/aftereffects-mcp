@@ -376,7 +376,8 @@ const TOOLS = [
       comp: S.comp, layer: S.layer, layers: S.layers,
       effect: { type: 'string', description: 'Display name ("Gaussian Blur") or matchName ("ADBE Gaussian Blur 2").' },
       name: { type: 'string', description: 'Rename this instance.' },
-      params: { type: 'object', description: 'Parameter name → value, e.g. {"Blurriness": 20, "Color": "#ff0000"}.' }
+      params: { type: 'object', description: 'Parameter name → value, e.g. {"Blurriness": 20, "Color": "#ff0000"}.' },
+      allowDialog: { type: 'boolean', description: 'Effects that open a file dialog when applied (Apply Color LUT) are refused unless this is true and a person is at the machine.' }
     }, ['effect']),
     fn: 'apply_effect'
   },
@@ -586,6 +587,21 @@ const TOOLS = [
       settings: { type: 'object' }, items: { type: 'array', items: { type: ['string', 'number'] } }
     }, ['action']),
     fn: 'item_action'
+  },
+  {
+    name: 'ae_essential_graphics',
+    description: 'Motion Graphics templates: add properties to the Essential Graphics panel with editor-friendly names (Source Text, colours, sliders, checkboxes…), list the controls, name the template, open the panel, and export a .mogrt for Premiere Pro. After an export, the first Undo after the next edit may step through an invisible entry. WRITE.',
+    inputSchema: obj({
+      comp: S.comp,
+      action: { type: 'string', enum: ['list', 'add', 'set_name', 'open', 'export'] },
+      layer: S.layer, path: S.path,
+      name: { type: 'string', description: 'add: the control\'s label in the panel. set_name: the template name.' },
+      properties: { type: 'array', items: obj({ layer: S.layer, path: S.path, name: { type: 'string' } }, ['path']),
+                    description: 'add several controls at once, in panel order.' },
+      file: { type: 'string', description: 'export: where to write the .mogrt (absolute path).' },
+      overwrite: { type: 'boolean', description: 'export: replace an existing file.' }
+    }, ['action']),
+    fn: 'essential_graphics'
   },
   {
     name: 'ae_delete_item',
