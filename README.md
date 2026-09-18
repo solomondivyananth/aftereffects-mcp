@@ -1,4 +1,4 @@
-# AE MCP Bridge
+# AE MCP Bridge: an After Effects MCP server for AI agents
 
 <a href="https://solomondivyananth.github.io/aftereffects-mcp/"><img src="docs/assets/welcome.gif" alt="AE MCP Bridge: After Effects meets AI. Read every layer, see every frame, edit live. 46 tools plus skills, in your timeline." width="100%"></a>
 

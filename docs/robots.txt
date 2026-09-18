@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://solomondivyananth.github.io/aftereffects-mcp/sitemap.xml

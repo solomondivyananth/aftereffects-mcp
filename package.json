@@ -17,7 +17,8 @@
     "mcp", "model-context-protocol", "mcp-server",
     "after-effects", "adobe-after-effects", "adobe",
     "extendscript", "cep", "motion-graphics",
-    "animation", "video", "automation", "ai", "claude"
+    "animation", "video", "automation", "ai", "claude", "claude-code",
+    "ai-agent", "after-effects-mcp", "after-effects-scripting", "cursor"
   ],
   "type": "commonjs",
   "main": "mcp/ae-mcp.js",
