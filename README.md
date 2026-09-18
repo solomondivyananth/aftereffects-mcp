@@ -183,6 +183,26 @@ centre anchor, copy to comp)
 
 **Control** — `ae_undo` · `ae_batch` · `ae_menu_command` · `ae_run_jsx`
 
+### Skills
+
+Nine skills ship in `skills/`. Claude Code loads them automatically in this
+repo, and every MCP client gets them as prompts of the same name.
+
+| Skill | What it teaches |
+|---|---|
+| `ae-mcp-bridge` | the tools: read → edit → look, addressing, guard refusals |
+| `ae-motion-principles` | timing in frames, easing that reads, overshoot, stagger, stomp type |
+| `ae-expressions` | a cookbook of expressions, each one verified to compile in After Effects |
+| `ae-effects` | glows, noise, particles, glitch, and every kind of blur and motion blur |
+| `ae-transitions` | whips, punches, shape, mask, luma and effect wipes |
+| `ae-morph` | shape, mask, letter and gooey morphs that don't twist |
+| `ae-camera-3d` | camera rigs, depth of field, lights, shadows, renderers, 3D models |
+| `ae-deliver` | pre-flight, format variants with safe areas, renders, verifying the file |
+| `video-reference-compare` | frame-by-frame comparison of a render against a reference |
+
+Effect, parameter and menu names in the skills were checked against a live
+After Effects.
+
 It speaks After Effects:
 
 - **Time** as seconds (`2.5`), frames (`"75f"`) or timecode (`"0:00:02:15"`).

@@ -301,6 +301,9 @@ async function t(label, name, args, check) {
     console.log('SKIP footage tests: no ' + clip);
   }
   await t('item_action open comp', 'ae_item_action', { action: 'open', item: C });
+  await t('rename then keep working (layer found by object, not old name)', 'ae_set_layer_props', { comp: C, layer: 'Para', props: { name: 'Paragraph' } },
+    (r) => !r.error && r.data.after.name === 'Paragraph');
+  await t('  … renamed layer is addressable', 'ae_text', { comp: C, layer: 'Paragraph' }, (r) => !r.error);
   await t('layer_action trim_to_work_area', 'ae_layer_action', { comp: C, layer: 'Title', action: 'trim_to_work_area' },
     (r) => !r.error && r.data.results[0].inPoint >= 0.33);
   await t('delete_item folder contents ok', 'ae_list_items', { kind: 'folder' }, (r) => !r.error && r.data.items.length >= 1);

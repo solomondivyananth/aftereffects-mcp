@@ -287,11 +287,16 @@ function _findLayers(comp, ref) {
     return [_findLayer(comp, ref)];
 }
 
+/* The layers the last _eachLayer call worked on, as objects. Edits can
+   rename or reorder them, so they are never looked up again by name/index. */
+var __aeTouched = [];
+
 /* Run fn(layer) over a.layers when given (many), otherwise over a.layer. */
 function _eachLayer(comp, a, fn) {
     var targets, out = [], i;
-    if (a.layers === undefined) { return fn(_findLayer(comp, a.layer)); }
-    targets = _findLayers(comp, a.layers);
+    targets = a.layers === undefined ? [_findLayer(comp, a.layer)] : _findLayers(comp, a.layers);
+    __aeTouched = targets;
+    if (a.layers === undefined) { return fn(targets[0]); }
     for (i = 0; i < targets.length; i++) { out.push(fn(targets[i])); }
     return { comp: comp.name, count: out.length, results: out };
 }
@@ -1033,7 +1038,7 @@ function aeSetProperty(a) {
                  after: t !== undefined ? _plainValue(p.valueAtTime(t, true)) : _safeValue(p),
                  numKeys: p.numKeys };
     });
-    _reveal(comp, a.layers !== undefined ? _findLayers(comp, a.layers) : _findLayer(comp, a.layer), lastTime);
+    _reveal(comp, __aeTouched, lastTime);
     if (res.results) { return res; }
     res.comp = comp.name;
     return res;
@@ -1068,7 +1073,7 @@ function aeAddKeyframes(a) {
         }
         return { layer: L.name, property: p.name, numKeys: p.numKeys, keys: _keys(p) };
     });
-    _reveal(comp, a.layers !== undefined ? _findLayers(comp, a.layers) : _findLayer(comp, a.layer), firstTime);
+    _reveal(comp, __aeTouched, firstTime);
     if (!res.results) { res.comp = comp.name; }
     return res;
 }
@@ -1107,7 +1112,7 @@ function aeSetExpression(a) {
         return { layer: L.name, property: p.name, before: before || null,
                  expression: p.expression, value: _safeValue(p) };
     });
-    _reveal(comp, a.layers !== undefined ? _findLayers(comp, a.layers) : _findLayer(comp, a.layer));
+    _reveal(comp, __aeTouched);
     if (!res.results) { res.comp = comp.name; }
     return res;
 }
@@ -1150,7 +1155,7 @@ function aeApplyEffect(a) {
         return { layer: L.name, effect: e.name, matchName: e.matchName, index: e.propertyIndex,
                  params: _walk(e, 0, 1, true) };
     });
-    _reveal(comp, a.layers !== undefined ? _findLayers(comp, a.layers) : _findLayer(comp, a.layer));
+    _reveal(comp, __aeTouched);
     if (!res.results) { res.comp = comp.name; }
     return res;
 }
@@ -1324,7 +1329,7 @@ function aeSetLayerProps(a) {
         }
         return { layer: L.name, index: L.index, before: before, after: after };
     });
-    _reveal(comp, a.layers !== undefined ? _findLayers(comp, a.layers) : _findLayer(comp, a.layer));
+    _reveal(comp, __aeTouched);
     if (!res.results) { res.comp = comp.name; }
     return res;
 }
@@ -1730,7 +1735,7 @@ function aeEditKeyframes(a) {
         return { layer: L.name, property: p.name, edited: times.length, keys: _keys(p),
                  copiedTo: a.copyTo ? { layer: target.name, property: tp.name, numKeys: tp.numKeys } : undefined };
     });
-    _reveal(comp, a.layers !== undefined ? _findLayers(comp, a.layers) : _findLayer(comp, a.layer), firstTime);
+    _reveal(comp, __aeTouched, firstTime);
     if (!res.results) { res.comp = comp.name; }
     return res;
 }
@@ -2212,7 +2217,7 @@ function aeText(a) {
         else { sp.setValue(td); }
         return { layer: L.name, before: before, after: _textStyle(t !== undefined ? sp.valueAtTime(t, true) : sp.value, true) };
     });
-    _reveal(comp, a.layers !== undefined ? _findLayers(comp, a.layers) : _findLayer(comp, a.layer), t);
+    _reveal(comp, __aeTouched, t);
     if (!res.results) { res.comp = comp.name; }
     return res;
 }

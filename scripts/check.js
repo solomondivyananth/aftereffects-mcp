@@ -83,10 +83,30 @@ const debugId = (read('panel/.debug').match(/Extension Id="([^"]+)"/) || [])[1];
 const manifestId = (manifest.match(/<Extension Id="([^"]+)"/) || [])[1];
 if (debugId !== manifestId) { fail('.debug extension id ' + debugId + ' does not match manifest ' + manifestId); }
 
-/* 5. The skill ships and names only real tools. */
-const skill = read('skills/ae-mcp-bridge/SKILL.md');
-for (const m of skill.matchAll(/`(ae_[a-z_]+)`/g)) {
-  if (!names.has(m[1])) { fail('SKILL.md mentions ' + m[1] + ', which is not a tool'); }
+/* 5. Every skill is well-formed and names only real tools. */
+for (const dir of fs.readdirSync(path.join(ROOT, 'skills'))) {
+  const file = path.join('skills', dir, 'SKILL.md');
+  if (!fs.existsSync(path.join(ROOT, file))) { fail(file + ' is missing'); continue; }
+  const md = read(file);
+  const fm = md.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) { fail(file + ' has no frontmatter'); continue; }
+  const name = (fm[1].match(/^name:\s*(.+)$/m) || [])[1];
+  const desc = (fm[1].match(/^description:\s*(.+)$/m) || [])[1] || '';
+  if (name !== dir) { fail(file + ': frontmatter name "' + name + '" must equal the folder name'); }
+  if (desc.length < 40 || desc.length > 1024) { fail(file + ': description must be 40-1024 characters (is ' + desc.length + ')'); }
+  for (const m of md.matchAll(/\b(ae_[a-z_]+)\b/g)) {
+    if (!names.has(m[1])) { fail(file + ' mentions ' + m[1] + ', which is not a tool'); }
+  }
+  const scripts = path.join(ROOT, 'skills', dir, 'scripts');
+  if (fs.existsSync(scripts)) {
+    for (const f of fs.readdirSync(scripts)) {
+      if (/\.(sh|bash|zsh)$/.test(f)) { fail('skills/' + dir + '/scripts/' + f + ': skill scripts must be Node so they run on Windows'); }
+      if (/\.js$/.test(f)) {
+        try { new vm.Script(read(path.join('skills', dir, 'scripts', f)).replace(/^#!.*\n/, '')); }
+        catch (e) { fail('skills/' + dir + '/scripts/' + f + ': ' + e.message); }
+      }
+    }
+  }
 }
 if (!pkg.files.includes('skills/')) { fail('package.json "files" does not ship skills/'); }
 

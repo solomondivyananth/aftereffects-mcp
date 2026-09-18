@@ -869,17 +869,40 @@ async function runTool(name, args) {
 /* Prompts & resources                                                 */
 /* ------------------------------------------------------------------ */
 
-const SKILL_PATH = path.join(ROOT, 'skills', 'ae-mcp-bridge', 'SKILL.md');
+/* Every skill in skills/ is also served as an MCP prompt, so clients that
+   don't load Claude skills (Codex, Cursor, …) get the same guides.
+   "after-effects" stays as an alias for the main guide. */
+const SKILLS_DIR = path.join(ROOT, 'skills');
 
-const PROMPTS = [{
-  name: 'after-effects',
-  description: 'How to work in After Effects through these tools: the read → edit → look loop, addressing, which tool for which edit, and what the guard refusals mean.'
-}];
+function loadSkills() {
+  const out = [];
+  let dirs = [];
+  try { dirs = fs.readdirSync(SKILLS_DIR); } catch (e) { return out; }
+  for (const dir of dirs.sort()) {
+    try {
+      const md = fs.readFileSync(path.join(SKILLS_DIR, dir, 'SKILL.md'), 'utf8');
+      const fm = md.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      const desc = fm ? ((fm[1].match(/^description:\s*(.+)$/m) || [])[1] || '') : '';
+      out.push({ name: dir, description: desc, body: md.replace(/^---[\s\S]*?---\s*/, '') });
+    } catch (e) { /* not a skill folder */ }
+  }
+  return out;
+}
 
-function skillText() {
-  try {
-    return fs.readFileSync(SKILL_PATH, 'utf8').replace(/^---[\s\S]*?---\s*/, '');
-  } catch (e) { return 'Skill file not found at ' + SKILL_PATH + '.'; }
+function promptList() {
+  const skills = loadSkills();
+  const main = skills.find((k) => k.name === 'ae-mcp-bridge');
+  const list = skills.map((k) => ({ name: k.name, description: k.description }));
+  if (main) {
+    list.unshift({ name: 'after-effects', description: 'How to work in After Effects through these tools (same as ae-mcp-bridge): the read → edit → look loop, addressing, which tool for which edit, and what the guard refusals mean.' });
+  }
+  return list;
+}
+
+function promptBody(name) {
+  const key = name === 'after-effects' ? 'ae-mcp-bridge' : name;
+  const k = loadSkills().find((x) => x.name === key);
+  return k ? k.body : null;
 }
 
 const RESOURCES = [
@@ -910,7 +933,8 @@ async function handleMessage(msg) {
       capabilities: { tools: {}, prompts: {}, resources: {} },
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
       instructions: 'Tools for a live After Effects session. Read before editing, render a frame after ' +
-        'every visual change, and use ae_review_motion to judge timing. The "after-effects" prompt has the full guide.'
+        'every visual change, and use ae_review_motion to judge timing. The "after-effects" prompt has the full guide; ' +
+        'the ae-* prompts cover motion principles, expressions, effects, transitions, morphs, camera and 3D, and delivery.'
     });
   }
   if (method === 'notifications/initialized' || method === 'notifications/cancelled') { return; }
@@ -931,12 +955,15 @@ async function handleMessage(msg) {
     }
   }
 
-  if (method === 'prompts/list') { return reply(id, { prompts: PROMPTS }); }
+  if (method === 'prompts/list') { return reply(id, { prompts: promptList() }); }
   if (method === 'prompts/get') {
-    if (!params || params.name !== 'after-effects') { return fail(id, -32602, 'Unknown prompt: ' + (params && params.name)); }
+    const name = params && params.name;
+    const body = name ? promptBody(name) : null;
+    if (!body) { return fail(id, -32602, 'Unknown prompt: ' + name + '. Available: ' + promptList().map((p) => p.name).join(', ')); }
+    const meta = promptList().find((p) => p.name === name);
     return reply(id, {
-      description: PROMPTS[0].description,
-      messages: [{ role: 'user', content: { type: 'text', text: skillText() } }]
+      description: meta ? meta.description : '',
+      messages: [{ role: 'user', content: { type: 'text', text: body } }]
     });
   }
 
