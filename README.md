@@ -201,6 +201,7 @@ panel/           CEP extension loaded by After Effects
 mcp/ae-mcp.js    MCP server — zero dependencies, stdio JSON-RPC
 install.sh       panel install + PlayerDebugMode
 sync.sh          push local edits into a --copy install
+skills/          ae-mcp-bridge skill — teaches a model how to use the tools
 ```
 
 `bridge.jsx` is **ES3** — no `let`, `const`, arrow functions or native `JSON`

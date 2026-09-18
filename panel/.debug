@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionList>
-	<Extension Id="com.solomon.aeclaudebridge.panel">
+	<Extension Id="com.aemcpbridge.panel">
 		<HostList>
 			<Host Name="AEFT" Port="8088" />
 		</HostList>

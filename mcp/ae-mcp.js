@@ -302,10 +302,10 @@ const TOOLS = [
       type: 'object',
       properties: {
         comp: S.comp,
-        kind: { type: 'string', enum: ['solid', 'text', 'shape', 'null', 'adjustment', 'camera', 'light', 'precomp'] },
+        kind: { type: 'string', enum: ['solid', 'text', 'shape', 'null', 'adjustment', 'camera', 'light', 'precomp', 'footage'] },
         options: {
           type: 'object',
-          description: 'name, text, color [r,g,b] 0-1, width, height, duration, startTime, inPoint, outPoint, index (stack position), position [x,y], threeD, source (comp name for precomp).'
+          description: 'name, text, color [r,g,b] 0-1, width, height, duration, startTime, inPoint, outPoint, index (stack position), position [x,y], threeD, source (comp or footage item name, for precomp and footage).'
         }
       },
       required: ['kind']

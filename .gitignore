@@ -5,10 +5,17 @@
 .Trashes
 
 # Runtime state — contains the bridge auth token. Never commit.
-.ae-claude-bridge.json
+.ae-mcp-bridge.json
 
 # Local editor / tooling
 .vscode/
 .idea/
 node_modules/
 *.log
+
+# Local-only — never track machine, client or project specific files
+.claude/
+prototype/
+*.aep
+*.aep.bak
+Adobe After Effects Auto-Save/
