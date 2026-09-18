@@ -87,7 +87,7 @@ if (debugId !== manifestId) { fail('.debug extension id ' + debugId + ' does not
 for (const dir of fs.readdirSync(path.join(ROOT, 'skills'))) {
   const file = path.join('skills', dir, 'SKILL.md');
   if (!fs.existsSync(path.join(ROOT, file))) { fail(file + ' is missing'); continue; }
-  const md = read(file);
+  const md = read(file).replace(/\r\n/g, '\n');
   const fm = md.match(/^---\n([\s\S]*?)\n---/);
   if (!fm) { fail(file + ' has no frontmatter'); continue; }
   const name = (fm[1].match(/^name:\s*(.+)$/m) || [])[1];

@@ -1,0 +1,6 @@
+# Keep line endings stable across macOS and Windows checkouts.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.png binary
+*.gif binary
+*.mp4 binary
