@@ -30,6 +30,8 @@
   "os": ["darwin"],
   "dependencies": {},
   "scripts": {
+    "test": "node scripts/check.js",
+    "test:live": "node scripts/live/tools.test.js && node scripts/live/guard.test.js",
     "postinstall": "node -e \"console.log('\\naftereffects-mcp: run npx aftereffects-mcp-install to install the After Effects panel.\\n')\""
   }
 }

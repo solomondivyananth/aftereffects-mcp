@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AE MCP Bridge</title>
+<meta name="description" content="Let AI work inside a live Adobe After Effects project — read comps, render frames, edit keyframes, expressions, masks, shapes and text. An MCP server for any MCP client.">
+<meta property="og:title" content="AE MCP Bridge">
+<meta property="og:description" content="Let AI work inside a live After Effects project. 46 tools, one ⌘Z per edit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ink: #0c0b12;
+    --ink-2: #14121d;
+    --ink-3: #1d1a29;
+    --line: #2b2839;
+    --paper: #efedf5;
+    --muted: #938ea8;
+    --violet: #9f8cff;
+    --violet-ink: #1a1150;
+    --display: "Anton", Impact, "Arial Narrow", sans-serif;
+    --ui: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--ink); color: var(--paper); font: 16px/1.6 var(--ui); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-inline: max(20px, env(safe-area-inset-left, 0px)); }
+  code, .mono { font-family: var(--mono); }
+  :focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  /* nav */
+  nav { position: sticky; top: 0; z-index: 10; background: rgba(12,11,18,.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top, 0px); }
+  nav .wrap { display: flex; align-items: center; gap: 24px; height: 56px; }
+  .mark { font: 400 22px/1 var(--display); letter-spacing: .02em; text-decoration: none; white-space: nowrap; }
+  .mark span { color: var(--violet); }
+  nav ul { display: flex; gap: 22px; list-style: none; margin: 0 0 0 auto; padding: 0; font-size: 14px; color: var(--muted); }
+  nav ul a { text-decoration: none; }
+  nav ul a:hover { color: var(--paper); }
+  .gh { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font: 600 13px/1 var(--ui); text-decoration: none; white-space: nowrap; }
+  .gh:hover { border-color: var(--violet); }
+
+  /* hero */
+  .hero { padding-block: clamp(48px, 8vw, 96px) 40px; display: grid; gap: 28px; }
+  .eyebrow { font: 500 12px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--violet); }
+  h1 { font: 400 clamp(52px, 10.5vw, 150px)/.88 var(--display); text-transform: uppercase; margin: 0; letter-spacing: .005em; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--violet); }
+  .lede { max-width: 58ch; font-size: clamp(17px, 1.6vw, 20px); color: #cbc6db; margin: 0; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; border-radius: 6px; padding: 13px 20px; font: 600 15px/1 var(--ui); text-decoration: none; border: 1px solid transparent; cursor: pointer; }
+  .btn.primary { background: var(--violet); color: var(--violet-ink); }
+  .btn.primary:hover { background: #b3a4ff; }
+  .btn.ghost { border-color: var(--line); color: var(--paper); background: transparent; }
+  .btn.ghost:hover { border-color: var(--muted); }
+
+  /* player */
+  .player { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--ink-2); box-shadow: 0 40px 120px -40px rgba(159,140,255,.35); }
+  .player-bar { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--line); font: 500 12px/1 var(--mono); color: var(--muted); }
+  .player-bar b { color: var(--paper); font-weight: 500; }
+  .player-bar .sp { flex: 1; }
+  .ctl { background: var(--ink-3); color: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 6px 11px; font: 600 12px/1 var(--ui); cursor: pointer; }
+  .ctl:hover { border-color: var(--muted); }
+  .sw { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
+  .sw[aria-pressed="true"] { border-color: #fff; }
+  .tl { position: relative; height: 46px; background: var(--ink-2); border-top: 1px solid var(--line); cursor: pointer; overflow: hidden; touch-action: none; }
+  .tl .ruler { position: absolute; inset: 0 0 auto; height: 16px; border-bottom: 1px solid var(--line); }
+  .tl .ruler i { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
+  .tl .ruler span { position: absolute; top: 3px; transform: translateX(4px); font: 10px/1 var(--mono); color: #6f6a85; }
+  .tl .mk { position: absolute; top: 22px; height: 16px; padding: 0 5px; background: #c7bdff; color: var(--ink); font: 500 10px/16px var(--mono); border-radius: 2px; white-space: nowrap; }
+  .tl .ph { position: absolute; top: 0; bottom: 0; width: 1px; background: #5c9dff; pointer-events: none; }
+  .tl .ph::before { content: ""; position: absolute; top: 0; left: -5px; border: 5px solid transparent; border-top-color: #5c9dff; }
+
+  /* sections as comp markers */
+  section { padding-block: clamp(56px, 8vw, 104px); border-top: 1px solid var(--line); }
+  .marker { display: inline-flex; align-items: center; gap: 10px; font: 500 12px/1 var(--mono); color: var(--muted); margin-bottom: 18px; }
+  .marker i { display: inline-block; width: 10px; height: 14px; background: #c7bdff; clip-path: polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%); }
+  h2 { font: 400 clamp(38px, 6vw, 76px)/.95 var(--display); text-transform: uppercase; margin: 0 0 18px; text-wrap: balance; }
+  .intro { color: #bdb8cf; max-width: 62ch; margin: 0 0 40px; font-size: 18px; }
+
+  /* the loop */
+  .loop { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .step { background: var(--ink-2); border: 1px solid var(--line); border-radius: 8px; padding: 22px; display: grid; gap: 12px; align-content: start; }
+  .step h3 { font: 400 42px/1 var(--display); margin: 0; letter-spacing: .01em; }
+  .step p { margin: 0; color: #bdb8cf; font-size: 15px; }
+  .call { font: 12.5px/1.55 var(--mono); background: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; color: #cfcbe0; overflow-x: auto; white-space: pre; }
+  .call .k { color: var(--violet); } .call .c { color: #6f6a85; } .call .s { color: #a8e3b4; }
+
+  /* vernacular */
+  .speak { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .speak div { padding: 22px 24px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+  .speak div:nth-child(odd) { border-right: 1px solid var(--line); }
+  .speak div:nth-last-child(-n+2) { border-bottom: 0; }
+  .speak dt { font: 600 13px/1.3 var(--ui); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .speak dd { margin: 0; font: 500 18px/1.45 var(--mono); color: var(--paper); }
+  .speak dd span { color: var(--violet); }
+  .speak small { color: #8f8aa3; font: 14px/1.5 var(--ui); }
+
+  /* tools */
+  .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 28px 32px; }
+  .group h3 { font: 600 13px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; display: flex; justify-content: space-between; }
+  .group h3 b { color: var(--violet); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: 12.5px/1 var(--mono); padding: 7px 9px; border-radius: 4px; background: var(--ink-2); border: 1px solid var(--line); color: #d9d5e6; }
+
+  /* safety */
+  .safety { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+  .safety h3 { font: 600 18px/1.3 var(--ui); margin: 0 0 8px; }
+  .safety p { margin: 0; color: #bdb8cf; font-size: 15px; }
+
+  /* install */
+  .install { display: grid; gap: 14px; max-width: 820px; }
+  .cmd { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; background: var(--ink-2); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .cmd .n { font: 400 28px/1 var(--display); color: var(--violet); width: 28px; text-align: center; }
+  .cmd .body { display: grid; gap: 4px; min-width: 0; }
+  .cmd .body span { font-size: 14px; color: var(--muted); }
+  .cmd code { font-size: 14px; color: var(--paper); overflow-x: auto; white-space: nowrap; display: block; }
+  .copy { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 4px; padding: 6px 10px; font: 600 12px/1 var(--ui); cursor: pointer; }
+  .copy:hover { color: var(--paper); border-color: var(--muted); }
+
+  footer { border-top: 1px solid var(--line); padding-block: 40px calc(40px + env(safe-area-inset-bottom, 0px)); color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: baseline; }
+  footer .by { color: #bdb8cf; }
+  footer .sp { flex: 1; }
+
+  @media (max-width: 560px) { .tl .mk { display: none; } .tl { height: 22px; } }
+  @media (max-width: 860px) {
+    nav ul { display: none; }
+    .gh { margin-left: auto; }
+    .loop, .safety { grid-template-columns: minmax(0, 1fr); }
+    .speak { grid-template-columns: minmax(0, 1fr); }
+    .speak div:nth-child(odd) { border-right: 0; }
+    .speak div:nth-last-child(2) { border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="mark" href="#top">AE <span>MCP</span> BRIDGE</a>
+    <ul>
+      <li><a href="#loop">How it works</a></li>
+      <li><a href="#tools">Tools</a></li>
+      <li><a href="#safety">Safety</a></li>
+      <li><a href="#install">Install</a></li>
+    </ul>
+    <a class="gh" href="https://github.com/solomondivyananth/aftereffects-mcp">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<main id="top">
+  <div class="wrap hero">
+    <span class="eyebrow">MCP server · After Effects 2022+ · macOS · MIT</span>
+    <h1>Let AI work <em>inside</em> After&nbsp;Effects.</h1>
+    <p class="lede">Not a code generator that hands you a script. A live connection to the app you have open. It reads your real comp, renders real frames to look at, makes real edits, and every edit is one ⌘Z.</p>
+    <div class="ctas">
+      <a class="btn primary" href="#install">Install</a>
+      <a class="btn ghost" href="https://github.com/solomondivyananth/aftereffects-mcp">View the source</a>
+    </div>
+
+    <div class="player" aria-label="Welcome animation">
+      <div class="player-bar">
+        <span>Composition <b>Welcome · AE MCP Bridge</b></span>
+        <span class="sp"></span>
+        <span id="tc">0:00:00:00</span>
+        <span class="sw-row" role="group" aria-label="Accent colour" style="display:inline-flex;gap:6px">
+          <button class="sw" data-c="#9f8cff" style="background:#9f8cff" aria-pressed="true" aria-label="Violet accent"></button>
+          <button class="sw" data-c="#ff7a3d" style="background:#ff7a3d" aria-pressed="false" aria-label="Orange accent"></button>
+          <button class="sw" data-c="#35d6e8" style="background:#35d6e8" aria-pressed="false" aria-label="Cyan accent"></button>
+          <button class="sw" data-c="#c6f24a" style="background:#c6f24a" aria-pressed="false" aria-label="Lime accent"></button>
+        </span>
+        <button class="ctl" id="play" type="button">Pause</button>
+      </div>
+      <div id="stomp"></div>
+      <div class="tl" id="tl" aria-label="Timeline — click or drag to scrub">
+        <div class="ruler" id="ruler"></div>
+        <div id="mks"></div>
+        <div class="ph" id="ph"></div>
+      </div>
+    </div>
+  </div>
+
+  <section id="loop">
+    <div class="wrap">
+      <div class="marker"><i></i>0:00:01:18 · Read</div>
+      <h2>Read. Edit. Look.</h2>
+      <p class="intro">The model works the way an animator does: it reads what's there, makes one change, and renders the frame to check its own work before telling you it's done.</p>
+      <div class="loop">
+        <div class="step">
+          <h3>READ</h3>
+          <p>The real property tree: keyframes, eases, expressions, text animators, trim paths, masks. It sees animation that lives outside Transform too.</p>
+          <div class="call"><span class="k">ae_comp_tree</span> {<span class="s">"comp"</span>: <span class="s">"Hero 16x9"</span>}
+<span class="c">→ 14 layers · "Title" animates</span>
+<span class="c">  Text › Animators › Opacity (6 keys)</span></div>
+        </div>
+        <div class="step">
+          <h3>EDIT</h3>
+          <p>Keyframes, expressions, effects, presets, text, masks, shapes and markers, on one layer or fifty, as a single undo step.</p>
+          <div class="call"><span class="k">ae_add_keyframes</span> {
+  <span class="s">"layers"</span>: <span class="s">"selected"</span>,
+  <span class="s">"path"</span>: [<span class="s">"Transform"</span>,<span class="s">"Scale"</span>],
+  <span class="s">"keys"</span>: [{<span class="s">"time"</span>:<span class="s">"0f"</span>, ...},
+           {<span class="s">"time"</span>:<span class="s">"12f"</span>, <span class="s">"ease"</span>:<span class="s">"easy"</span>}]}</div>
+        </div>
+        <div class="step">
+          <h3>LOOK</h3>
+          <p>It renders frames and a motion contact sheet, so it judges timing as motion, not as numbers that merely look right.</p>
+          <div class="call"><span class="k">ae_review_motion</span> {<span class="s">"frames"</span>: 16}
+<span class="c">→ contact sheet + motion.mp4</span>
+<span class="c">  "The overshoot lands at 0:00:00:14 —</span>
+<span class="c">   2 frames early against the beat."</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="speak">
+    <div class="wrap">
+      <div class="marker"><i></i>0:00:03:25 · Native</div>
+      <h2>It speaks After&nbsp;Effects.</h2>
+      <p class="intro">No translating between how you think about a comp and how a script wants it said.</p>
+      <dl class="speak">
+        <div><dt>Time</dt><dd><span>2.5</span> · <span>"75f"</span> · <span>"0:00:02:15"</span></dd><small>Seconds, frames or timecode, wherever a time goes.</small></div>
+        <div><dt>Easing</dt><dd><span>"easy"</span> · <span>"easy_in"</span> · <span>"easy_out"</span></dd><small>F9 Easy Ease by name, or influence and speed by the number.</small></div>
+        <div><dt>Layers</dt><dd><span>"selected"</span> · <span>"all"</span> · <span>{"match": "^BG"}</span></dd><small>One call, many layers, still one undo step.</small></div>
+        <div><dt>Undo</dt><dd>Edit ▸ Undo <span>“MCP: Set Position”</span></dd><small>Every write is one labelled step, and it tells you the value before and after.</small></div>
+        <div><dt>Colour</dt><dd><span>"#ff7a3d"</span> · <span>[1, .48, .24]</span></dd><small>Hex or channels, on any colour property or effect.</small></div>
+        <div><dt>Menus</dt><dd><span>"Convert to Editable Text"</span></dd><small>Any menu command by its menu text. Dialogs are refused so nothing freezes.</small></div>
+      </dl>
+    </div>
+  </section>
+
+  <section id="tools">
+    <div class="wrap">
+      <div class="marker"><i></i>0:00:07:28 · 46</div>
+      <h2>46 tools. Plus a skill.</h2>
+      <p class="intro">The <code>ae-mcp-bridge</code> skill teaches the model the workflow: read before editing, look after every change, and what each refusal means. Clients that don't load skills get the same guide as an MCP prompt.</p>
+      <div class="groups" id="groups"></div>
+    </div>
+  </section>
+
+  <section id="safety">
+    <div class="wrap">
+      <div class="marker"><i></i>0:00:09:16 · Safe</div>
+      <h2>Your project stays yours.</h2>
+      <div class="safety">
+        <div><h3>A sandbox guard</h3><p>Writes only land in the project you mark as the sandbox, and only you can change that, from the panel. No tool can unlock it.</p></div>
+        <div><h3>Locked to your machine</h3><p>Loopback only, a 256-bit token, and browser requests refused. A web page you happen to visit can't drive After Effects.</p></div>
+        <div><h3>A raw-script switch</h3><p>The two tools that can run anything are one toggle away from off. The dedicated tools keep working.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <div class="marker"><i></i>0:00:10:05 · Install</div>
+      <h2>Three steps.</h2>
+      <div class="install">
+        <div class="cmd"><span class="n">1</span><div class="body"><span>Get the source and install the panel</span><code>git clone https://github.com/solomondivyananth/aftereffects-mcp.git && cd aftereffects-mcp && ./install.sh</code></div><button class="copy" type="button">Copy</button></div>
+        <div class="cmd"><span class="n">2</span><div class="body"><span>Relaunch After Effects, then open the panel</span><code>Window ▸ Extensions ▸ AE MCP Bridge</code></div><button class="copy" type="button">Copy</button></div>
+        <div class="cmd"><span class="n">3</span><div class="body"><span>Connect your MCP client (Claude Code shown)</span><code>claude mcp add after-effects -- node "$PWD/mcp/ae-mcp.js"</code></div><button class="copy" type="button">Copy</button></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="by">Made by Solomon Divyananth</span>
+    <span>MIT licensed</span>
+    <span class="sp"></span>
+    <span>Not affiliated with Adobe or Anthropic.</span>
+    <a href="https://github.com/solomondivyananth/aftereffects-mcp">GitHub</a>
+  </div>
+</footer>
+
+<script src="stomp.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- hero player ---------- */
+  var player = Stomp.play($('stomp'), { timecode: false });
+  var D = Stomp.duration, tl = $('tl'), ruler = $('ruler');
+  for (var s = 0; s <= 13; s++) {
+    var i = document.createElement('i'); i.style.left = (s / D * 100) + '%'; ruler.appendChild(i);
+    if (s % 2 === 0) { var sp = document.createElement('span'); sp.style.left = (s / D * 100) + '%'; sp.textContent = s + 's'; ruler.appendChild(sp); }
+  }
+  Stomp.markers.forEach(function (m) {
+    var el = document.createElement('span'); el.className = 'mk'; el.style.left = (m.t / D * 100) + '%'; el.textContent = m.label; $('mks').appendChild(el);
+  });
+  function tc(t) { var f = Math.round(t * 30), sec = Math.floor(f / 30), fr = f % 30; return '0:00:' + String(sec).padStart(2, '0') + ':' + String(fr).padStart(2, '0'); }
+  player.onFrame(function (t) { $('ph').style.left = (t / D * 100) + '%'; $('tc').textContent = tc(t); });
+  if (!player.playing) { $('play').textContent = 'Play'; }
+
+  var dragging = false;
+  function seekTo(e) { var r = tl.getBoundingClientRect(); player.seek((e.clientX - r.left) / r.width * D); }
+  tl.addEventListener('pointerdown', function (e) { dragging = true; tl.setPointerCapture(e.pointerId); seekTo(e); });
+  tl.addEventListener('pointermove', function (e) { if (dragging) { seekTo(e); } });
+  tl.addEventListener('pointerup', function () { dragging = false; });
+  $('play').addEventListener('click', function () { this.textContent = player.toggle() ? 'Pause' : 'Play'; });
+  Array.prototype.forEach.call(document.querySelectorAll('.sw'), function (b) {
+    b.addEventListener('click', function () {
+      player.stomp.setAccent(b.dataset.c);
+      Array.prototype.forEach.call(document.querySelectorAll('.sw'), function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+    });
+  });
+
+  /* ---------- tools ---------- */
+  var G = [
+    ['Read', ['ae_project_info', 'ae_comp_tree', 'ae_layer_detail', 'ae_find_animation', 'ae_selection', 'ae_list_items', 'ae_catalog']],
+    ['See & show', ['ae_render_frame', 'ae_review_motion', 'ae_goto']],
+    ['Animate', ['ae_set_property', 'ae_add_keyframes', 'ae_edit_keyframes', 'ae_set_expression', 'ae_clear_expression', 'ae_apply_effect', 'ae_apply_preset', 'ae_text', 'ae_markers', 'ae_masks', 'ae_shape', 'ae_add_property', 'ae_remove_property', 'ae_property_meta']],
+    ['Layers', ['ae_create_layer', 'ae_delete_layer', 'ae_set_layer_props', 'ae_layer_action']],
+    ['Project', ['ae_create_comp', 'ae_set_comp_settings', 'ae_duplicate_comp', 'ae_precompose', 'ae_import_file', 'ae_item_action', 'ae_delete_item', 'ae_new_project', 'ae_open_project', 'ae_save_project']],
+    ['Render', ['ae_render_video', 'ae_render_status', 'ae_render_cancel', 'ae_render_queue']],
+    ['Control', ['ae_undo', 'ae_batch', 'ae_menu_command', 'ae_run_jsx']]
+  ];
+  G.forEach(function (g) {
+    var box = document.createElement('div'); box.className = 'group';
+    var h = document.createElement('h3'); h.textContent = g[0];
+    var n = document.createElement('b'); n.textContent = g[1].length; h.appendChild(n);
+    var chips = document.createElement('div'); chips.className = 'chips';
+    g[1].forEach(function (t) { var c = document.createElement('span'); c.className = 'chip'; c.textContent = t; chips.appendChild(c); });
+    box.appendChild(h); box.appendChild(chips); $('groups').appendChild(box);
+  });
+
+  /* ---------- copy buttons ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('.copy'), function (b) {
+    b.addEventListener('click', function () {
+      var code = b.parentNode.querySelector('code').textContent;
+      (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () {
+        b.textContent = 'Copied';
+      }, function () { b.textContent = 'Select to copy'; });
+      setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+    });
+  });
+})();
+</script>
+</body>
+</html>

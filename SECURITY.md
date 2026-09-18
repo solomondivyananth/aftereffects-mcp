@@ -22,11 +22,20 @@ processes. Treat the bridge as equivalent to a local shell.
   the designated sandbox. Only a human can lift this, from the panel UI; no tool
   can unlock it.
 
+- **Raw scripting switch.** `ae_run_jsx` and `ae_menu_command` can be turned off
+  in the panel. With the guard on, the panel checks the open project before and
+  after each raw call and flags any switch loudly.
+
 ### What the sandbox guard does not cover
 
 The guard stops an AI agent that is using **only the MCP tools** in this project:
 no tool can disable it, so a model cannot unlock itself no matter what it is
 asked or told.
+
+It also cannot see *inside* `ae_run_jsx` or `ae_menu_command`: the guard checks
+which project is open before a write, but raw ExtendScript can open or close
+projects during the call. The panel detects that afterwards and warns, but it
+cannot prevent it. If that matters, switch raw scripting off in the panel.
 
 It does **not** stop an agent that also has general control of your desktop. An
 agent with macOS Accessibility permissions, shell access, or the ability to edit

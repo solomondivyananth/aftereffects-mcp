@@ -20,7 +20,13 @@
 
   var statePath = path.join(os.homedir(), '.ae-mcp-bridge.json');
   var frameDir = path.join(os.homedir(), '.ae-mcp-bridge', 'frames');
-  var state = { sandboxPath: null, guardEnabled: true, port: DEFAULT_PORT, token: null };
+  var renderDir = path.join(os.homedir(), '.ae-mcp-bridge', 'renders');
+  var jobsPath = path.join(renderDir, 'jobs.json');
+  var state = { sandboxPath: null, guardEnabled: true, port: DEFAULT_PORT, token: null,
+                reveal: true, allowRaw: true };
+  var VERSION = readVersion();
+  /* Tools that run arbitrary code or menu commands — the panel can switch them off. */
+  var RAW_FNS = ['run_jsx', 'menu_command'];
   var writeFns = null;          // filled in from the JSX side on boot
   var projectFns = [];          // ops that swap the open project entirely
   var renderJobs = {};          // id -> aerender job state
@@ -42,6 +48,8 @@
       if (typeof saved.guardEnabled === 'boolean') { state.guardEnabled = saved.guardEnabled; }
       if (saved.port) { state.port = saved.port; }
       if (saved.token) { state.token = saved.token; }
+      if (typeof saved.reveal === 'boolean') { state.reveal = saved.reveal; }
+      if (typeof saved.allowRaw === 'boolean') { state.allowRaw = saved.allowRaw; }
     } catch (e) { /* first run */ }
 
     /* The bridge can run arbitrary ExtendScript, so it must not be reachable by
@@ -51,6 +59,17 @@
       state.token = crypto.randomBytes(32).toString('hex');
       saveState();
     }
+  }
+
+  /* One version, from the extension manifest, instead of a copy per file. */
+  function readVersion() {
+    try {
+      var root = window.__adobe_cep__.getSystemPath('extension');
+      var xml = fs.readFileSync(path.join(decodeURI(root.replace(/^file:\/\//, '')), 'CSXS', 'manifest.xml'), 'utf8');
+      var m = xml.match(/ExtensionBundleVersion="([^"]+)"/);
+      if (m) { return m[1]; }
+    } catch (e) {}
+    return 'unknown';
   }
 
   function saveState() {
@@ -64,16 +83,32 @@
   /* ExtendScript dispatch                                        */
   /* ------------------------------------------------------------ */
 
-  function evalScript(script) {
-    return new Promise(function (resolve) {
-      cep.evalScript(script, function (result) { resolve(result); });
+  function evalScript(script, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var timer = timeoutMs ? setTimeout(function () {
+        reject(new Error('After Effects has not answered in ' + Math.round(timeoutMs / 1000) + 's. ' +
+          'It is most likely showing a dialog (or busy rendering) — ask the user to look at the app ' +
+          'and dismiss it. Calls queue up behind it and will run once it clears.'));
+      }, timeoutMs) : null;
+      cep.evalScript(script, function (result) {
+        if (timer) { clearTimeout(timer); }
+        resolve(result);
+      });
     });
+  }
+
+  /* How long a call may take before we say AE looks stuck. Rendering through
+     the Render Queue and arbitrary scripts are allowed much longer. */
+  function timeoutFor(fn) {
+    if (fn === 'render_queue') { return 3600000; }
+    if (fn === 'run_jsx' || fn === 'batch' || fn === 'menu_command') { return 600000; }
+    return 90000;
   }
 
   function callBridge(fn, args) {
     var script = '__aeBridge(' + JSON.stringify(fn) + ',' +
                  JSON.stringify(JSON.stringify(args || {})) + ')';
-    return evalScript(script).then(function (raw) {
+    return evalScript(script, timeoutFor(fn)).then(function (raw) {
       if (raw === 'EvalScript error.') {
         throw new Error('ExtendScript failed to evaluate. Is bridge.jsx loaded? ' +
                         'Close and reopen the panel.');
@@ -210,10 +245,23 @@
   /* aerender jobs                                                */
   /* ------------------------------------------------------------ */
 
-  /* Don't pin a year — find whatever After Effects the user actually has. */
+  /* Don't pin a year — use the aerender that ships with the After Effects this
+     panel is running in, wherever it is installed; fall back to a scan. */
   function findAerender() {
     if (process.env.AE_RENDER_PATH) { return process.env.AE_RENDER_PATH; }
-    var roots = ['/Applications', 'C:\\Program Files\\Adobe'];
+    try {
+      var dir = decodeURI(String(cep.getSystemPath('hostApplication')).replace(/^file:\/\//, ''));
+      for (var up = 0; up < 6 && dir && dir !== path.dirname(dir); up++) {
+        dir = path.dirname(dir);
+        var hit = ['aerender', 'aerender.exe'].map(function (b) { return path.join(dir, b); })
+          .filter(function (c) { try { return fs.statSync(c).isFile(); } catch (e) { return false; } });
+        if (hit.length) { return hit[0]; }
+      }
+    } catch (eHost) {}
+    var roots = ['/Applications', path.join(os.homedir(), 'Applications'), 'C:\\Program Files\\Adobe'];
+    try {
+      fs.readdirSync('/Volumes').forEach(function (v) { roots.push(path.join('/Volumes', v, 'Applications')); });
+    } catch (eVol) {}
     var found = [];
     roots.forEach(function (root) {
       var entries = [];
@@ -232,6 +280,49 @@
   }
 
   var AERENDER = findAerender();
+
+  /* Jobs live on disk, and aerender runs detached writing to its own log, so
+     reloading the panel (or restarting AE) neither orphans nor forgets them. */
+  function saveJobs() {
+    try {
+      fs.mkdirSync(renderDir, { recursive: true });
+      var plain = {};
+      Object.keys(renderJobs).forEach(function (id) {
+        var j = renderJobs[id];
+        plain[id] = { id: j.id, pid: j.pid, comp: j.comp, output: j.output, logPath: j.logPath,
+                      status: j.status, startedAt: j.startedAt, finishedAt: j.finishedAt || null,
+                      exitCode: j.exitCode, error: j.error || null };
+      });
+      fs.writeFileSync(jobsPath, JSON.stringify(plain, null, 2));
+    } catch (e) { log('Could not save render jobs: ' + e.message, 'warn'); }
+  }
+
+  function loadJobs() {
+    try {
+      var saved = JSON.parse(fs.readFileSync(jobsPath, 'utf8'));
+      Object.keys(saved).forEach(function (id) { renderJobs[id] = saved[id]; });
+    } catch (e) { /* none yet */ }
+  }
+
+  function alive(pid) {
+    if (!pid) { return false; }
+    try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+  }
+
+  function readLog(job) {
+    try { return fs.readFileSync(job.logPath, 'utf8').split('\n'); } catch (e) { return []; }
+  }
+
+  /* For a job this panel did not see finish (it was reloaded meanwhile), the
+     exit code is gone — the log and the output file say how it went. */
+  function refreshJob(job) {
+    if (job.status !== 'running' || alive(job.pid)) { return; }
+    var text = readLog(job).join('\n');
+    var outOk = (function () { try { return fs.statSync(job.output).size > 0; } catch (e) { return false; } })();
+    job.status = (/aerender ERROR|error:/i.test(text) || !outOk) ? 'failed' : 'done';
+    job.finishedAt = job.finishedAt || Date.now();
+    saveJobs();
+  }
 
   function renderStart(args) {
     return callBridge('project_info', {}).then(function (info) {
@@ -252,6 +343,7 @@
 
       return save.then(function () {
         try { fs.mkdirSync(path.dirname(args.output), { recursive: true }); } catch (e) {}
+        fs.mkdirSync(renderDir, { recursive: true });
 
         var argv = ['-project', info.projectPath, '-comp', args.comp, '-output', args.output];
         argv.push('-RStemplate', args.rsTemplate || 'Best Settings');
@@ -259,57 +351,55 @@
         if (typeof args.startFrame === 'number') { argv.push('-s', String(args.startFrame)); }
         if (typeof args.endFrame === 'number') { argv.push('-e', String(args.endFrame)); }
 
-        var id = 'job' + (++jobSeq);
+        var id = 'r' + Date.now().toString(36);
+        var logPath = path.join(renderDir, id + '.log');
+        var fd = fs.openSync(logPath, 'a');
+        var proc = childProcess.spawn(AERENDER, argv, { stdio: ['ignore', fd, fd], detached: true });
+        fs.closeSync(fd);
+        proc.unref();
+
         var job = {
-          id: id, comp: args.comp, output: args.output, status: 'running',
-          startedAt: Date.now(), log: [], progress: null, exitCode: null
+          id: id, pid: proc.pid, comp: args.comp, output: args.output, logPath: logPath,
+          status: 'running', startedAt: Date.now(), exitCode: null
         };
         renderJobs[id] = job;
+        saveJobs();
 
-        var proc = childProcess.spawn(AERENDER, argv, { stdio: ['ignore', 'pipe', 'pipe'] });
-        job.proc = proc;
-
-        function absorb(chunk) {
-          String(chunk).split('\n').forEach(function (line) {
-            line = line.replace(/\r/g, '').trim();
-            if (!line) { return; }
-            job.log.push(line);
-            if (job.log.length > 400) { job.log.shift(); }
-            var m = line.match(/PROGRESS:\s*(.+)/);
-            if (m) { job.progress = m[1]; }
-          });
-        }
-        proc.stdout.on('data', absorb);
-        proc.stderr.on('data', absorb);
         proc.on('error', function (e) {
           job.status = 'failed';
           job.error = e.message;
+          saveJobs();
           log('render ' + id + ' failed to start: ' + e.message, 'err');
         });
-        proc.on('close', function (code) {
+        proc.on('exit', function (code) {
           job.exitCode = code;
-          job.status = code === 0 ? 'done' : 'failed';
+          /* A cancel already set the final word; a SIGTERM exit is not a failure. */
+          if (job.status !== 'cancelled') { job.status = code === 0 ? 'done' : 'failed'; }
           job.finishedAt = Date.now();
-          job.proc = null;
+          saveJobs();
           log('render ' + id + ' ' + job.status + ' (' +
               Math.round((job.finishedAt - job.startedAt) / 1000) + 's)',
-              code === 0 ? 'ok' : 'err');
+              job.status === 'failed' ? 'err' : 'ok');
         });
 
         log('render ' + id + ' started · ' + args.comp, 'write');
-        return { jobId: id, comp: args.comp, output: args.output, projectPath: info.projectPath };
+        return { jobId: id, comp: args.comp, output: args.output, projectPath: info.projectPath, aerender: AERENDER };
       });
     });
   }
 
   function jobView(job) {
+    refreshJob(job);
+    var lines = readLog(job).map(function (l) { return l.replace(/\r/g, '').trim(); }).filter(Boolean);
+    var progress = null;
+    lines.forEach(function (l) { var m = l.match(/PROGRESS:\s*(.+)/); if (m) { progress = m[1]; } });
     return {
       jobId: job.id, comp: job.comp, output: job.output, status: job.status,
-      progress: job.progress, exitCode: job.exitCode, error: job.error || null,
+      progress: progress, exitCode: job.exitCode, error: job.error || null,
       elapsedSeconds: Math.round(((job.finishedAt || Date.now()) - job.startedAt) / 1000),
       outputExists: (function () { try { return fs.statSync(job.output).size > 0; } catch (e) { return false; } })(),
       outputBytes: (function () { try { return fs.statSync(job.output).size; } catch (e) { return null; } })(),
-      log: job.log.slice(-25)
+      log: lines.slice(-25)
     };
   }
 
@@ -325,7 +415,12 @@
   function renderCancel(args) {
     var j = renderJobs[args.jobId];
     if (!j) { throw new Error('No such render job: ' + args.jobId); }
-    if (j.proc) { j.proc.kill('SIGTERM'); j.status = 'cancelled'; }
+    if (j.status === 'running' && alive(j.pid)) {
+      j.status = 'cancelled';
+      j.finishedAt = Date.now();
+      saveJobs();
+      try { process.kill(j.pid, 'SIGTERM'); } catch (e) {}
+    }
     return jobView(j);
   }
 
@@ -364,7 +459,7 @@
   function handle(req, res) {
     if (req.method === 'GET' && req.url === '/alive') {
       /* Liveness only — reveals nothing about the project or the machine. */
-      return respond(res, 200, { alive: true, version: '0.1.0' });
+      return respond(res, 200, { alive: true, version: VERSION });
     }
 
     var refusal = rejectReason(req);
@@ -375,8 +470,9 @@
 
     if (req.method === 'GET' && req.url === '/health') {
       return respond(res, 200, {
-        ok: true, version: '0.1.0',
-        guardEnabled: state.guardEnabled, sandboxPath: state.sandboxPath
+        ok: true, version: VERSION, aerender: AERENDER,
+        guardEnabled: state.guardEnabled, sandboxPath: state.sandboxPath,
+        reveal: state.reveal, allowRaw: state.allowRaw
       });
     }
     if (req.method !== 'POST' || req.url !== '/call') {
@@ -401,10 +497,36 @@
       callCount++;
       log(fn + (args.comp ? ' · ' + args.comp : ''), isWriteFn(fn) ? 'write' : 'read');
 
+      if (RAW_FNS.indexOf(fn) !== -1 && !state.allowRaw) {
+        log(fn + ' → refused (raw scripting off)', 'err');
+        return respond(res, 200, { ok: false, error:
+          '"' + fn + '" is switched off in the AE MCP Bridge panel ("Allow raw ExtendScript and ' +
+          'menu commands"). Use the dedicated tools, or ask the user to switch it on.' });
+      }
+      if (!NODE_FNS[fn]) { args.__reveal = state.reveal; }
+
+      var projectBefore = null;
       checkGuard(fn)
+        .then(function () {
+          /* Raw code can open or close projects behind the guard's back —
+             at least make sure nobody is left unaware that it happened. */
+          if (RAW_FNS.indexOf(fn) === -1 || !state.guardEnabled) { return; }
+          return callBridge('project_info', {}).then(function (i) { projectBefore = i.projectPath; });
+        })
         .then(function () {
           if (NODE_FNS[fn]) { return NODE_FNS[fn](args); }
           return callBridge(fn, args);
+        })
+        .then(function (result) {
+          if (projectBefore === null) { return result; }
+          return callBridge('project_info', {}).then(function (i) {
+            if (i.projectPath !== projectBefore) {
+              log('WARNING: ' + fn + ' switched project to ' + i.projectPath, 'err');
+              return { result: result, warning: 'This call changed the open project from "' +
+                projectBefore + '" to "' + i.projectPath + '". The sandbox guard no longer protects it.' };
+            }
+            return result;
+          });
         })
         .then(function (result) {
           return fn === 'render_frame' ? settleFrames(result) : result;
@@ -454,14 +576,21 @@
     var el = document.createElement('div');
     el.className = 'line ' + (kind || '');
     var t = new Date();
-    var hh = String(t.getHours()).padStart(2, '0');
-    var mm = String(t.getMinutes()).padStart(2, '0');
-    var ss = String(t.getSeconds()).padStart(2, '0');
-    el.textContent = hh + ':' + mm + ':' + ss + '  ' + msg;
+    var ts = document.createElement('span');
+    ts.className = 't';
+    ts.textContent = String(t.getHours()).padStart(2, '0') + ':' +
+      String(t.getMinutes()).padStart(2, '0') + ':' + String(t.getSeconds()).padStart(2, '0');
+    var m = document.createElement('span');
+    m.className = 'm';
+    m.textContent = msg;
+    el.appendChild(ts);
+    el.appendChild(m);
     var box = $('log');
+    /* Only follow new lines if the user hasn't scrolled up to read. */
+    var atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
     box.appendChild(el);
-    while (box.childNodes.length > 200) { box.removeChild(box.firstChild); }
-    box.scrollTop = box.scrollHeight;
+    while (box.childNodes.length > 300) { box.removeChild(box.firstChild); }
+    if (atBottom) { box.scrollTop = box.scrollHeight; }
     $('count').textContent = callCount + (callCount === 1 ? ' call' : ' calls');
   }
 
@@ -470,16 +599,17 @@
     $('sandboxPath').textContent = state.sandboxPath || '(none set)';
     $('sandboxPath').title = state.sandboxPath || '';
     $('guardState').className = 'guard ' + (state.guardEnabled ? 'locked' : 'unlocked');
-    $('guardState').textContent = state.guardEnabled
-      ? 'Guard ON — edits only in the sandbox project'
-      : 'Guard OFF — Claude can edit any open project';
+    $('guardState').firstElementChild.textContent = state.guardEnabled
+      ? 'Guard on · only the sandbox project can be edited'
+      : 'Guard off · the agent can edit any open project';
+    $('guardState').title = $('guardState').firstElementChild.textContent;
   }
 
   function refreshProject() {
     callBridge('project_info', {}).then(function (info) {
       $('project').textContent = info.projectName +
         (info.activeComp ? '  ·  ' + info.activeComp : '');
-      $('project').title = info.projectPath || '';
+      $('project').title = (info.projectPath || '') + (info.activeComp ? '\n' + info.activeComp : '');
       window.__currentProjectPath = info.projectPath;
       $('setSandbox').disabled = !info.projectPath;
     }).catch(function (e) {
@@ -488,10 +618,55 @@
     });
   }
 
+  /* Match After Effects' interface brightness (Preferences ▸ Appearance). */
+  function applySkin() {
+    try {
+      var env = JSON.parse(cep.getHostEnvironment());
+      var c = env.appSkinInfo.panelBackgroundColor.color;
+      var r = Math.round(c.red), g = Math.round(c.green), b = Math.round(c.blue);
+      var light = (r + g + b) / 3 > 128;
+      var shift = function (d) {
+        return 'rgb(' + [r, g, b].map(function (v) { return Math.max(0, Math.min(255, v + d)); }).join(',') + ')';
+      };
+      var root = document.documentElement.style;
+      root.setProperty('--bg', 'rgb(' + r + ',' + g + ',' + b + ')');
+      root.setProperty('--raised', shift(light ? -14 : 10));
+      root.setProperty('--sunken', shift(light ? 12 : -8));
+      root.setProperty('--line', shift(light ? -34 : 22));
+      root.setProperty('--fg', light ? '#1e1e1e' : '#d4d4d4');
+      root.setProperty('--dim', light ? '#555' : '#8c8c8c');
+      root.setProperty('--faint', light ? '#777' : '#6a6a6a');
+    } catch (e) { /* keep the dark defaults */ }
+  }
+
   function boot() {
+    applySkin();
+    try { cep.addEventListener('com.adobe.csxs.events.ThemeColorChanged', applySkin); } catch (eSkin) {}
+    try {
+      $('server').open = localStorage.getItem('aemcp.serverOpen') === '1';
+      $('server').addEventListener('toggle', function () {
+        try { localStorage.setItem('aemcp.serverOpen', $('server').open ? '1' : '0'); } catch (e) {}
+      });
+    } catch (eLs) {}
     loadState();
+    loadJobs();
     $('port').value = state.port;
+    $('revealToggle').checked = state.reveal;
+    $('rawToggle').checked = state.allowRaw;
+    $('version').textContent = 'v' + VERSION;
     renderGuard();
+
+    $('revealToggle').addEventListener('change', function () {
+      state.reveal = $('revealToggle').checked;
+      saveState();
+      log(state.reveal ? 'Edits will show in the timeline.' : 'Edits will no longer move selection or playhead.', 'ok');
+    });
+    $('rawToggle').addEventListener('change', function () {
+      state.allowRaw = $('rawToggle').checked;
+      saveState();
+      log(state.allowRaw ? 'Raw ExtendScript and menu commands allowed.' : 'Raw ExtendScript and menu commands OFF.',
+          state.allowRaw ? 'warn' : 'ok');
+    });
 
     callBridge('write_fns', {}).then(function (list) {
       writeFns = list;
@@ -528,7 +703,7 @@
       startServer();
     });
 
-    $('clear').addEventListener('click', function () { $('log').innerHTML = ''; });
+    $('clear').addEventListener('click', function () { $('log').textContent = ''; });
 
     /* Dev affordance: pull bridge.jsx and this file back off disk without
        toggling the panel in the Extensions menu. */

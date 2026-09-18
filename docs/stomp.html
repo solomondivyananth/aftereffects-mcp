@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AE MCP Bridge · Welcome</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; background: #0e0e12; }
+  body { display: grid; place-items: center; }
+  #v { width: 100vw; max-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="v"></div>
+<script src="stomp.js"></script>
+<script>
+  /* ?t=3.25 renders one still frame (used to record the README video);
+     otherwise it plays and loops. */
+  var q = new URLSearchParams(location.search);
+  var v = document.getElementById('v');
+  if (q.has('t')) {
+    var s = Stomp.mount(v, { timecode: q.get('tc') === '1', shake: q.has('shake') ? +q.get('shake') : 0.6 });
+    document.fonts.ready.then(function () { s.render(+q.get('t')); document.body.dataset.ready = '1'; });
+  } else {
+    Stomp.play(v, { timecode: false });
+  }
+</script>
+</body>
+</html>

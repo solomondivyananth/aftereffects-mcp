@@ -1,5 +1,9 @@
 # AE MCP Bridge
 
+<a href="https://solomondivyananth.github.io/aftereffects-mcp/"><img src="docs/assets/welcome.gif" alt="AE MCP Bridge: After Effects meets AI. Read every layer, see every frame, edit live. 46 tools plus skills, in your timeline." width="100%"></a>
+
+<p align="center"><a href="https://solomondivyananth.github.io/aftereffects-mcp/"><b>Website</b></a> · <a href="docs/assets/welcome.mp4">Watch in HD</a> · <a href="#install">Install</a> · <a href="#tools">Tools</a></p>
+
 **Let an AI actually work in After Effects — read the project, look at rendered
 frames, and change keyframes, expressions and effects while the app is open.**
 
@@ -120,6 +124,14 @@ comparison cannot make that safe. They also refuse to run unless you say
 explicitly what happens to unsaved work — no silent data loss, and never a modal
 dialog that would deadlock the bridge.
 
+### Raw scripting switch
+
+`ae_run_jsx` and `ae_menu_command` can do anything the app can, including
+things the guard cannot see coming (a script can open another project). The
+panel's **Allow raw ExtendScript and menu commands** switch turns both off; the
+dedicated tools still work. With the guard on, the panel also checks whether a
+raw call changed the open project and flags it loudly if it did.
+
 ### Network protection
 
 The server binds loopback only and requires a 256-bit token, generated on first
@@ -137,26 +149,52 @@ but by then the code has already run. See [SECURITY.md](SECURITY.md).
 
 ## Tools
 
-29 tools across four groups.
+46 tools, named and shaped after After Effects itself.
 
 **Read** — `ae_project_info` · `ae_comp_tree` · `ae_layer_detail` ·
-`ae_find_animation` · `ae_selection` · `ae_list_items`
+`ae_find_animation` · `ae_selection` · `ae_list_items` · `ae_catalog`
+(effects, presets, fonts, render templates)
 
-**See** — `ae_render_frame` · `ae_review_motion`
+**See & show** — `ae_render_frame` · `ae_review_motion` · `ae_goto`
 
-**Edit** — `ae_set_property` · `ae_add_keyframes` · `ae_set_expression` ·
-`ae_clear_expression` · `ae_apply_effect` · `ae_create_layer` ·
-`ae_delete_layer` · `ae_set_layer_props` · `ae_run_jsx`
+**Animate** — `ae_set_property` · `ae_add_keyframes` · `ae_edit_keyframes` ·
+`ae_set_expression` · `ae_clear_expression` · `ae_apply_effect` ·
+`ae_apply_preset` · `ae_text` · `ae_markers` · `ae_masks` · `ae_shape` ·
+`ae_add_property` · `ae_remove_property` · `ae_property_meta`
 
-**Author** — `ae_create_comp` · `ae_set_comp_settings` · `ae_duplicate_comp` ·
-`ae_import_file` · `ae_precompose` · `ae_delete_item` · `ae_new_project` ·
-`ae_open_project` · `ae_save_project` · `ae_render_video` · `ae_render_status` ·
-`ae_render_cancel`
+**Layers** — `ae_create_layer` · `ae_delete_layer` · `ae_set_layer_props` ·
+`ae_layer_action` (duplicate, split, sequence, freeze frame, align, fit,
+centre anchor, copy to comp)
+
+**Project** — `ae_create_comp` · `ae_set_comp_settings` · `ae_duplicate_comp` ·
+`ae_precompose` · `ae_import_file` · `ae_item_action` · `ae_delete_item` ·
+`ae_new_project` · `ae_open_project` · `ae_save_project`
+
+**Render** — `ae_render_video` · `ae_render_status` · `ae_render_cancel` ·
+`ae_render_queue` (Render Queue panel and Media Encoder)
+
+**Control** — `ae_undo` · `ae_batch` · `ae_menu_command` · `ae_run_jsx`
+
+It speaks After Effects:
+
+- **Time** as seconds (`2.5`), frames (`"75f"`) or timecode (`"0:00:02:15"`).
+- **Easing** by name: `"easy"` is F9 Easy Ease, plus `"easy_in"`/`"easy_out"`.
+- **Colours** as `"#ff8800"` or 0–1 / 0–255 arrays.
+- **Many layers** in one call — `"selected"`, `"all"`, a list, or a name regex —
+  as one undo step. `ae_batch` makes any sequence of calls one atomic step.
+- **Every write is one Edit ▸ Undo step**, labelled "MCP: Set Position" and so on,
+  and writes that change a value return it **before and after**.
+- **Edits show up like hand edits**: the comp opens, the layers are selected,
+  the playhead moves to the change. Switch it off in the panel.
 
 Property paths are arrays: `["Transform","Position"]`,
 `["Effects","Gaussian Blur","Blurriness"]`. Names or matchNames both work, and a
 wrong segment returns the list of valid children instead of a bare failure — so
 the model corrects itself rather than guessing.
+
+The server also exposes the usage guide as the MCP prompt `after-effects`, and
+the open project and current selection as resources (`ae://project`,
+`ae://selection`).
 
 ---
 
@@ -199,6 +237,8 @@ panel/           CEP extension loaded by After Effects
   js/main.js     HTTP server, auth, guard enforcement, aerender jobs
   jsx/bridge.jsx everything touching the AE DOM (ExtendScript, ES3)
 mcp/ae-mcp.js    MCP server — zero dependencies, stdio JSON-RPC
+scripts/          check.js (npm test), live tests (npm run test:live), record-welcome.js
+docs/            the website (GitHub Pages) and the welcome animation
 install.sh       panel install + PlayerDebugMode
 sync.sh          push local edits into a --copy install
 skills/          ae-mcp-bridge skill — teaches a model how to use the tools

@@ -4,89 +4,167 @@
 <meta charset="utf-8">
 <title>AE MCP Bridge</title>
 <style>
+  /* Colours follow After Effects' own panel brightness (set from the host
+     skin in main.js); these are the defaults for the standard dark UI. */
   :root {
-    --bg: #232323; --panel: #2b2b2b; --line: #3a3a3a;
-    --fg: #d6d6d6; --dim: #8a8a8a;
-    --ok: #6bbf59; --err: #e06c5f; --warn: #d4a24c; --write: #6ea8d8;
+    --bg: #232323; --raised: #2c2c2c; --sunken: #1c1c1c; --line: #383838;
+    --fg: #d4d4d4; --dim: #8c8c8c; --faint: #6a6a6a;
+    --ok: #62c26f; --err: #e2685c; --warn: #d9a441; --write: #6fa8dc;
+    --accent: #8f7dff;
+    --pad: 10px;
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
   body {
-    margin: 0; background: var(--bg); color: var(--fg);
-    font: 11px/1.5 -apple-system, "Segoe UI", sans-serif;
-    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    background: var(--bg); color: var(--fg);
+    font: 11px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    /* Fixed rows; only the log stretches. Nothing depends on the panel's
+       size except the log, so resizing never reflows the controls. */
+    display: grid;
+    /* The column is the panel's width, never its content's — otherwise one
+       long log line or path widens everything and pushes controls off-edge. */
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    overflow: hidden;
   }
-  .sec { padding: 8px 10px; border-bottom: 1px solid var(--line); }
-  .row { display: flex; align-items: center; gap: 6px; }
-  .row + .row { margin-top: 5px; }
-  .label { color: var(--dim); min-width: 54px; flex: 0 0 auto; }
-  .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
-  .dot.on { background: var(--ok); } .dot.off { background: var(--err); }
-  button {
-    background: #3a3a3a; color: var(--fg); border: 1px solid #4a4a4a;
-    border-radius: 3px; padding: 3px 8px; font: inherit; cursor: pointer;
+  section { padding: 8px var(--pad); border-bottom: 1px solid var(--line); min-width: 0; display: grid; gap: 6px; }
+
+  .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .grow { flex: 1 1 auto; min-width: 0; }
+
+  /* status */
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--err); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 5px var(--ok); }
+  #status { font-weight: 600; }
+  .project { color: var(--dim); }
+
+  .icon {
+    flex: none; width: 22px; height: 20px; padding: 0; display: grid; place-items: center;
+    background: transparent; color: var(--dim); border: 1px solid transparent; border-radius: 3px; cursor: pointer; font: 13px/1 inherit;
   }
-  button:hover:not(:disabled) { background: #454545; }
+  .icon:hover { color: var(--fg); background: var(--raised); border-color: var(--line); }
+
+  button.text {
+    background: var(--raised); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 3px; padding: 3px 8px; font: inherit; cursor: pointer; white-space: nowrap;
+  }
+  button.text:hover:not(:disabled) { border-color: #555; }
   button:disabled { opacity: .4; cursor: default; }
-  input[type=text], input[type=number] {
-    background: #1e1e1e; color: var(--fg); border: 1px solid #4a4a4a;
-    border-radius: 3px; padding: 2px 5px; font: inherit; width: 64px;
+  button:focus-visible, input:focus-visible, summary:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+
+  /* guard */
+  .guard { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-radius: 3px; font-weight: 600; min-width: 0; }
+  .guard.locked { background: rgba(98,194,111,.12); color: var(--ok); }
+  .guard.unlocked { background: rgba(226,104,92,.14); color: var(--err); }
+  .guard span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sandbox { color: var(--dim); }
+  .sandbox b { color: var(--fg); font-weight: 500; }
+
+  /* switches */
+  .switch { display: flex; align-items: center; gap: 7px; cursor: pointer; min-width: 0; user-select: none; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .track { flex: none; width: 24px; height: 13px; border-radius: 7px; background: #4a4a4a; position: relative; transition: background .12s; }
+  .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 9px; height: 9px; border-radius: 50%; background: #ddd; transition: transform .12s; }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(11px); }
+  .switch input:focus-visible + .track { outline: 1px solid var(--accent); outline-offset: 2px; }
+  .switch .ellipsis { flex: 1 1 auto; }
+
+  /* server settings fold away */
+  details { min-width: 0; }
+  summary { cursor: pointer; color: var(--dim); list-style: none; display: flex; align-items: center; gap: 6px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸"; font-size: 9px; width: 8px; }
+  details[open] summary::before { content: "▾"; }
+  details .row { margin-top: 6px; }
+  input[type=number] {
+    width: 62px; background: var(--sunken); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 3px; padding: 2px 5px; font: inherit;
   }
-  .guard { padding: 4px 6px; border-radius: 3px; font-weight: 600; margin-top: 6px; }
-  .guard.locked { background: rgba(107,191,89,.13); color: var(--ok); }
-  .guard.unlocked { background: rgba(224,108,95,.15); color: var(--err); }
+
+  /* log: the one flexible region */
   #log {
-    flex: 1; overflow-y: auto; padding: 6px 10px;
-    font-family: ui-monospace, Menlo, monospace; font-size: 10px;
+    min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px var(--pad);
+    font: 10px/1.5 ui-monospace, Menlo, monospace; background: var(--sunken);
   }
-  .line { color: var(--dim); white-space: pre-wrap; word-break: break-word; }
-  .line.ok { color: var(--ok); } .line.err { color: var(--err); }
-  .line.warn { color: var(--warn); } .line.write { color: var(--write); }
-  .foot {
-    padding: 4px 10px; border-top: 1px solid var(--line);
-    color: var(--dim); display: flex; justify-content: space-between;
+  .line { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; color: var(--dim); }
+  .line .t { color: var(--faint); }
+  .line .m { overflow-wrap: anywhere; }
+  .line.ok .m { color: var(--ok); } .line.err .m { color: var(--err); }
+  .line.warn .m { color: var(--warn); } .line.write .m { color: var(--write); }
+
+  footer {
+    display: flex; align-items: center; gap: 6px; padding: 4px var(--pad);
+    border-top: 1px solid var(--line); color: var(--faint); min-width: 0;
+  }
+
+  /* Narrow: drop secondary text, keep every control reachable. */
+  @media (max-width: 230px) {
+    :root { --pad: 7px; }
+    .project, .hide-narrow, .line .t { display: none; }
+    .line { grid-template-columns: minmax(0, 1fr); }
+  }
+  /* Short: settings collapse behind their summaries; the log keeps its space. */
+  @media (max-height: 300px) {
+    section { padding-block: 5px; gap: 4px; }
+    .hide-short { display: none; }
   }
 </style>
 </head>
 <body>
 
-  <div class="sec">
+  <section aria-label="Connection">
     <div class="row">
-      <span class="dot off" id="dot"></span>
-      <span class="val" id="status">Starting…</span>
-      <input type="number" id="port" min="1024" max="65535">
-      <button id="restart">Restart</button>
-      <button id="reload" title="Re-read bridge.jsx and main.js from disk">↻</button>
+      <span class="dot" id="dot"></span>
+      <span class="ellipsis grow" id="status">Starting…</span>
+      <button class="icon" id="reload" title="Reload the panel's code from disk" aria-label="Reload panel">↻</button>
     </div>
-    <div class="row">
-      <span class="label">Project</span>
-      <span class="val" id="project">—</span>
+    <div class="row project hide-short">
+      <span class="ellipsis grow" id="project">—</span>
     </div>
-  </div>
+  </section>
 
-  <div class="sec">
-    <div class="row">
-      <span class="label">Sandbox</span>
-      <span class="val" id="sandboxPath">(none set)</span>
+  <section aria-label="Safety">
+    <div class="guard locked" id="guardState"><span></span></div>
+    <label class="switch">
+      <input type="checkbox" id="guardToggle">
+      <span class="track"></span>
+      <span class="ellipsis">Guard writes to sandbox only</span>
+    </label>
+    <div class="row sandbox hide-short">
+      <span class="ellipsis grow">Sandbox: <b id="sandboxPath">(none set)</b></span>
+      <button class="text" id="setSandbox" disabled title="Only this project can be edited while the guard is on">Use current</button>
     </div>
-    <div class="row">
-      <button id="setSandbox" disabled>Use current project as sandbox</button>
-    </div>
-    <div class="row">
-      <label class="row" style="gap:5px;cursor:pointer">
-        <input type="checkbox" id="guardToggle">
-        <span>Guard writes to sandbox only</span>
-      </label>
-    </div>
-    <div class="guard locked" id="guardState"></div>
-  </div>
+  </section>
 
-  <div id="log"></div>
+  <section aria-label="Behaviour">
+    <label class="switch" title="Select the layers and move the playhead to each edit, inside the comp that is already open">
+      <input type="checkbox" id="revealToggle">
+      <span class="track"></span>
+      <span class="ellipsis">Show edits in timeline</span>
+    </label>
+    <label class="switch" title="ae_run_jsx and ae_menu_command can do anything, including things the guard cannot see">
+      <input type="checkbox" id="rawToggle">
+      <span class="track"></span>
+      <span class="ellipsis">Allow raw scripts and menu commands</span>
+    </label>
+    <details id="server" class="hide-short">
+      <summary>Server</summary>
+      <div class="row">
+        <span class="hide-narrow">Port</span>
+        <input type="number" id="port" min="1024" max="65535" aria-label="Port">
+        <button class="text" id="restart">Restart</button>
+      </div>
+    </details>
+  </section>
 
-  <div class="foot">
-    <span id="count">0 calls</span>
-    <button id="clear" style="padding:0 6px">Clear</button>
-  </div>
+  <div id="log" role="log" aria-label="Call log"></div>
+
+  <footer>
+    <span class="ellipsis grow"><span id="count">0 calls</span> · <span id="version"></span></span>
+    <button class="icon" id="clear" title="Clear the log" aria-label="Clear log">⌫</button>
+  </footer>
 
 <script src="js/main.js"></script>
 </body>
