@@ -26,9 +26,9 @@
     "aftereffects-mcp": "mcp/ae-mcp.js",
     "aftereffects-mcp-install": "bin/install-panel.js"
   },
-  "files": ["mcp/", "panel/", "bin/", "skills/", "install.sh", "sync.sh", "README.md", "SECURITY.md", "LICENSE"],
+  "files": ["mcp/", "panel/", "bin/", "skills/", "install.sh", "install.cmd", "sync.sh", "README.md", "SECURITY.md", "LICENSE"],
   "engines": { "node": ">=18" },
-  "os": ["darwin"],
+  "os": ["darwin", "win32"],
   "dependencies": {},
   "scripts": {
     "test": "node scripts/check.js",

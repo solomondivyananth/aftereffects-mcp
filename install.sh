@@ -1,32 +1,14 @@
 #!/usr/bin/env bash
-# Installs the AE MCP Bridge CEP panel into After Effects.
+# Installs the AE MCP Bridge CEP panel into After Effects (macOS; on Windows run install.cmd).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXT_ID="com.aemcpbridge"
-EXT_DIR="$HOME/Library/Application Support/Adobe/CEP/extensions"
-TARGET="$EXT_DIR/$EXT_ID"
-
-echo "→ Enabling unsigned CEP extensions (PlayerDebugMode)"
-for v in 9 10 11 12; do
-  defaults write "com.adobe.CSXS.$v" PlayerDebugMode 1 2>/dev/null || true
-done
-killall cfprefsd 2>/dev/null || true
-
-mkdir -p "$EXT_DIR"
-
-if [ -e "$TARGET" ] || [ -L "$TARGET" ]; then
-  echo "→ Removing previous install at $TARGET"
-  rm -rf "$TARGET"
-fi
-
+# One installer for macOS and Windows lives in bin/install-panel.js.
 if [ "${1:-}" = "--copy" ] || [ "${2:-}" = "--copy" ]; then
-  echo "→ Copying panel to $TARGET"
-  cp -R "$HERE/panel" "$TARGET"
+  node "$HERE/bin/install-panel.js"
 else
-  echo "→ Linking panel to $TARGET"
-  ln -s "$HERE/panel" "$TARGET"
-  echo "  (run with --copy instead if After Effects does not see the symlink)"
+  node "$HERE/bin/install-panel.js" --link
+  echo "  (run with --copy instead if After Effects does not see the link)"
 fi
 
 # The project's .mcp.json already registers the server for this directory.

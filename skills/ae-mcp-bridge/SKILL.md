@@ -125,7 +125,7 @@ Never discard without the user saying so.
 | token error | panel restarted; retry (the token is re-read every call) |
 | call hangs, then times out | a modal dialog is open in AE — ask the user to dismiss it |
 | new tools missing / "Unknown bridge function" | the panel is running old code — click ↻ in the panel |
-| panel missing from the menu | run `./install.sh`, then **relaunch** AE |
+| panel missing from the menu | run the installer (`npx aftereffects-mcp-install`, or `install.sh` / `install.cmd` from source), then **relaunch** AE |
 | no contact sheet | `ffmpeg` isn't installed; frames come back individually |
 
 ## Taste stays with the user

@@ -90,6 +90,24 @@ for (const m of skill.matchAll(/`(ae_[a-z_]+)`/g)) {
 }
 if (!pkg.files.includes('skills/')) { fail('package.json "files" does not ship skills/'); }
 
+/* 6. The server actually starts and answers an MCP handshake, on this OS. */
+const { spawnSync } = require('child_process');
+const handshake = [
+  { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'check', version: '0' } } },
+  { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+  { jsonrpc: '2.0', id: 3, method: 'prompts/get', params: { name: 'after-effects' } }
+].map((m) => JSON.stringify(m)).join('\n') + '\n';
+const run = spawnSync(process.execPath, [path.join(ROOT, 'mcp', 'ae-mcp.js')], { input: handshake, encoding: 'utf8', timeout: 20000 });
+const replies = {};
+String(run.stdout || '').split(/\r?\n/).filter(Boolean).forEach((l) => { try { const m = JSON.parse(l); replies[m.id] = m; } catch (e) {} });
+if (!replies[1] || !replies[1].result || replies[1].result.serverInfo.version !== pkg.version) { fail('MCP server did not answer initialize (' + (run.stderr || run.error || 'no output') + ')'); }
+if (!replies[2] || !replies[2].result || replies[2].result.tools.length !== TOOLS.length) { fail('MCP server tools/list did not return ' + TOOLS.length + ' tools'); }
+if (!replies[3] || !replies[3].result || !/read → edit → look/.test(replies[3].result.messages[0].content.text)) { fail('MCP server did not serve the after-effects prompt'); }
+
+/* 7. Installer knows both platforms. */
+const installer = read('bin/install-panel.js');
+if (!/win32/.test(installer) || !/darwin/.test(installer)) { fail('bin/install-panel.js must support macOS and Windows'); }
+
 if (failures.length) {
   console.error(failures.map((f) => '✗ ' + f).join('\n'));
   console.error('\n' + failures.length + ' problem(s).');

@@ -2334,7 +2334,12 @@ function aeLayerAction(a) {
 
 function _presetRoots() {
     var roots = [], year = 2000 + parseInt(app.version, 10), f;
-    try { f = new Folder(Folder.appPackage.parent.fsName + '/Presets'); if (f.exists) { roots.push(f); } } catch (e1) {}
+    /* macOS: Presets sits beside the .app bundle. Windows: Folder.appPackage is
+       "Support Files", and Presets is inside it. */
+    try { f = new Folder(Folder.appPackage.fsName + '/Presets'); if (f.exists) { roots.push(f); } } catch (e0) {}
+    try {
+        if (!roots.length) { f = new Folder(Folder.appPackage.parent.fsName + '/Presets'); if (f.exists) { roots.push(f); } }
+    } catch (e1) {}
     try {
         f = new Folder(Folder.myDocuments.fsName + '/Adobe/After Effects ' + year + '/User Presets');
         if (f.exists) { roots.push(f); }

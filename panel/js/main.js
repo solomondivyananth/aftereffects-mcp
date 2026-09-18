@@ -61,11 +61,19 @@
     }
   }
 
+  /* CEP hands back paths as plain paths or file:// URLs, and on Windows as
+     file:///C:/… — turn any of them into a native filesystem path. */
+  function cepPath(p) {
+    var s = decodeURI(String(p || '')).replace(/^file:\/\//, '');
+    if (/^\/[A-Za-z]:[\/\\]/.test(s)) { s = s.slice(1); }
+    return path.normalize(s);
+  }
+
   /* One version, from the extension manifest, instead of a copy per file. */
   function readVersion() {
     try {
       var root = window.__adobe_cep__.getSystemPath('extension');
-      var xml = fs.readFileSync(path.join(decodeURI(root.replace(/^file:\/\//, '')), 'CSXS', 'manifest.xml'), 'utf8');
+      var xml = fs.readFileSync(path.join(cepPath(root), 'CSXS', 'manifest.xml'), 'utf8');
       var m = xml.match(/ExtensionBundleVersion="([^"]+)"/);
       if (m) { return m[1]; }
     } catch (e) {}
@@ -250,7 +258,7 @@
   function findAerender() {
     if (process.env.AE_RENDER_PATH) { return process.env.AE_RENDER_PATH; }
     try {
-      var dir = decodeURI(String(cep.getSystemPath('hostApplication')).replace(/^file:\/\//, ''));
+      var dir = cepPath(cep.getSystemPath('hostApplication'));
       for (var up = 0; up < 6 && dir && dir !== path.dirname(dir); up++) {
         dir = path.dirname(dir);
         var hit = ['aerender', 'aerender.exe'].map(function (b) { return path.join(dir, b); })
@@ -258,18 +266,22 @@
         if (hit.length) { return hit[0]; }
       }
     } catch (eHost) {}
-    var roots = ['/Applications', path.join(os.homedir(), 'Applications'), 'C:\\Program Files\\Adobe'];
-    try {
-      fs.readdirSync('/Volumes').forEach(function (v) { roots.push(path.join('/Volumes', v, 'Applications')); });
-    } catch (eVol) {}
+    var roots = process.platform === 'win32'
+      ? [path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Adobe')]
+      : ['/Applications', path.join(os.homedir(), 'Applications')];
+    if (process.platform !== 'win32') {
+      try {
+        fs.readdirSync('/Volumes').forEach(function (v) { roots.push(path.join('/Volumes', v, 'Applications')); });
+      } catch (eVol) {}
+    }
     var found = [];
     roots.forEach(function (root) {
       var entries = [];
       try { entries = fs.readdirSync(root); } catch (e) { return; }
       entries.forEach(function (name) {
         if (!/Adobe After Effects/i.test(name)) { return; }
-        ['aerender', 'aerender.exe'].forEach(function (bin) {
-          var candidate = path.join(root, name, bin);
+        /* macOS: <AE folder>/aerender. Windows: <AE folder>\Support Files\aerender.exe */
+        [path.join(root, name, 'aerender'), path.join(root, name, 'Support Files', 'aerender.exe')].forEach(function (candidate) {
           try { if (fs.statSync(candidate).isFile()) { found.push(candidate); } } catch (e2) {}
         });
       });
@@ -331,8 +343,10 @@
                         'be saved first. Call ae_save_project with a path.');
       }
       if (!AERENDER) {
-        throw new Error('Could not find the aerender binary. Set AE_RENDER_PATH to it, ' +
-                        'e.g. /Applications/Adobe After Effects 2026/aerender');
+        throw new Error('Could not find the aerender binary. Set AE_RENDER_PATH to it, e.g. ' +
+          (process.platform === 'win32'
+            ? 'C:\\Program Files\\Adobe\\Adobe After Effects 2026\\Support Files\\aerender.exe'
+            : '/Applications/Adobe After Effects 2026/aerender'));
       }
       if (!args.comp) { throw new Error('"comp" is required.'); }
       if (!args.output) { throw new Error('"output" is required.'); }
@@ -354,7 +368,8 @@
         var id = 'r' + Date.now().toString(36);
         var logPath = path.join(renderDir, id + '.log');
         var fd = fs.openSync(logPath, 'a');
-        var proc = childProcess.spawn(AERENDER, argv, { stdio: ['ignore', fd, fd], detached: true });
+        /* windowsHide: a detached process would otherwise open a console window. */
+        var proc = childProcess.spawn(AERENDER, argv, { stdio: ['ignore', fd, fd], detached: true, windowsHide: true });
         fs.closeSync(fd);
         proc.unref();
 
@@ -708,8 +723,7 @@
     /* Dev affordance: pull bridge.jsx and this file back off disk without
        toggling the panel in the Extensions menu. */
     $('reload').addEventListener('click', function () {
-      var root = cep.getSystemPath('extension');
-      var jsx = root + '/jsx/bridge.jsx';
+      var jsx = path.join(cepPath(cep.getSystemPath('extension')), 'jsx', 'bridge.jsx');
       log('Reloading ' + jsx, 'warn');
       evalScript('$.evalFile(' + JSON.stringify(jsx) + '); "ok"').then(function (r) {
         if (server) { try { server.close(); } catch (e) {} }

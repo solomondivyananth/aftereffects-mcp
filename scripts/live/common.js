@@ -39,6 +39,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* Close and reopen the panel through AE's own scheduler (AppleScript
    DoScript, so it works even when the guard refuses bridge writes). */
 async function reloadPanel() {
+  if (process.platform !== 'darwin') { throw new Error('reloading the panel from a script needs macOS (AppleScript)'); }
   execFileSync('osascript', ['-e', 'tell application id "' + AE_ID + '" to DoScript ' +
     '"var id = app.findMenuCommandId(\\"AE MCP Bridge\\"); app.scheduleTask(\\"app.executeCommand(\\" + id + \\")\\", 300, false); ' +
     'app.scheduleTask(\\"app.executeCommand(\\" + id + \\")\\", 3500, false);"']);
@@ -51,7 +52,7 @@ async function reloadPanel() {
 }
 
 /* Dialogs show up as extra AE windows. Optional: needs swiftc (Xcode tools). */
-let winBin = null;
+let winBin = process.platform === 'darwin' ? null : false;
 function aeWindows() {
   if (winBin === null) {
     winBin = path.join(os.homedir(), '.ae-mcp-bridge', 'aewins');

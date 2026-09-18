@@ -13,7 +13,7 @@
 <meta property="og:site_name" content="AE MCP Bridge">
 <meta property="og:url" content="https://solomondivyananth.github.io/aftereffects-mcp/">
 <meta property="og:title" content="AE MCP Bridge · After Effects MCP server for AI agents">
-<meta property="og:description" content="Let AI work inside a live After Effects project. 46 tools: read layers, render frames, edit keyframes, expressions, masks and shapes. One ⌘Z per edit.">
+<meta property="og:description" content="Let AI work inside a live After Effects project. 46 tools: read layers, render frames, edit keyframes, expressions, masks and shapes. One undo per edit, on macOS and Windows.">
 <meta property="og:image" content="https://solomondivyananth.github.io/aftereffects-mcp/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -21,7 +21,7 @@
 <meta property="og:video" content="https://solomondivyananth.github.io/aftereffects-mcp/assets/welcome.mp4">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="AE MCP Bridge · After Effects MCP server for AI agents">
-<meta name="twitter:description" content="Let AI work inside a live After Effects project. 46 tools, one ⌘Z per edit.">
+<meta name="twitter:description" content="Let AI work inside a live After Effects project. 46 tools, one undo per edit. macOS and Windows.">
 <meta name="twitter:image" content="https://solomondivyananth.github.io/aftereffects-mcp/assets/og.png">
 <script type="application/ld+json">
 {
@@ -31,7 +31,7 @@
   "alternateName": "aftereffects-mcp",
   "description": "An open-source Model Context Protocol (MCP) server that lets AI agents read, view and edit a live Adobe After Effects project.",
   "applicationCategory": "DeveloperApplication",
-  "operatingSystem": "macOS",
+  "operatingSystem": "macOS, Windows",
   "softwareRequirements": "Adobe After Effects 2022 or later, Node.js 18 or later",
   "license": "https://opensource.org/licenses/MIT",
   "url": "https://solomondivyananth.github.io/aftereffects-mcp/",
@@ -164,6 +164,7 @@
   .cmd .body { display: grid; gap: 4px; min-width: 0; }
   .cmd .body span { font-size: 14px; color: var(--muted); }
   .cmd code { font-size: 14px; color: var(--paper); overflow-x: auto; white-space: nowrap; display: block; }
+  .cmd .body span code { display: inline; font-size: 13px; color: #cfcbe0; }
   .copy { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 4px; padding: 6px 10px; font: 600 12px/1 var(--ui); cursor: pointer; }
   .copy:hover { color: var(--paper); border-color: var(--muted); }
 
@@ -204,9 +205,9 @@
 
 <main id="top">
   <div class="wrap hero">
-    <span class="eyebrow">MCP server · After Effects 2022+ · macOS · MIT</span>
+    <span class="eyebrow">MCP server · After Effects 2022+ · macOS &amp; Windows · MIT</span>
     <h1>Let AI work <em>inside</em> After&nbsp;Effects.</h1>
-    <p class="lede">Not a code generator that hands you a script. A live connection to the app you have open. It reads your real comp, renders real frames to look at, makes real edits, and every edit is one ⌘Z.</p>
+    <p class="lede">Not a code generator that hands you a script. A live connection to the app you have open. It reads your real comp, renders real frames to look at, makes real edits, and every edit is one ⌘Z (Ctrl+Z on Windows).</p>
     <div class="ctas">
       <a class="btn primary" href="#install">Install</a>
       <a class="btn ghost" href="https://github.com/solomondivyananth/aftereffects-mcp">View the source</a>
@@ -313,7 +314,7 @@
         <details><summary>What is an After Effects MCP server?</summary><p>MCP (the Model Context Protocol) is the standard way AI assistants call tools. AE MCP Bridge is an MCP server whose tools reach into a running copy of Adobe After Effects, so an assistant like Claude can read your comps, render frames to look at, and make edits directly. You don't have to copy scripts back and forth.</p></details>
         <details><summary>Which AI clients does it work with?</summary><p>Any MCP client. Claude Code and Claude Desktop, Cursor, and other MCP-capable tools all connect the same way. Nothing in the bridge is specific to one client, and it needs no API key: your client brings its own model.</p></details>
         <details><summary>Will it change my project without asking?</summary><p>No. A sandbox guard only allows edits to the project you mark as the sandbox, and only you can change that, from the panel. Reads and renders always work. Every edit is one step in Edit ▸ Undo.</p></details>
-        <details><summary>Which versions of After Effects are supported?</summary><p>After Effects 2022 (22.0) and later on macOS, using a CEP panel and ExtendScript, which is the route to After Effects' full scripting object model. Windows support is planned.</p></details>
+        <details><summary>Which versions of After Effects are supported?</summary><p>After Effects 2022 (22.0) and later, on macOS and Windows, using a CEP panel and ExtendScript, which is the route to After Effects' full scripting object model.</p></details>
         <details><summary>Can it render video?</summary><p>Yes. It runs background renders with aerender, so After Effects stays usable. It can also drive the Render Queue panel and hand jobs to Adobe Media Encoder.</p></details>
       </div>
     </div>
@@ -324,7 +325,7 @@
       <div class="marker"><i></i>0:00:10:15 · Install</div>
       <h2>Three steps.</h2>
       <div class="install">
-        <div class="cmd"><span class="n">1</span><div class="body"><span>Get the source and install the panel</span><code>git clone https://github.com/solomondivyananth/aftereffects-mcp.git && cd aftereffects-mcp && ./install.sh</code></div><button class="copy" type="button">Copy</button></div>
+        <div class="cmd"><span class="n">1</span><div class="body"><span>Get the source and install the panel. On Windows, run <code>install.cmd</code> instead of <code>./install.sh</code>.</span><code>git clone https://github.com/solomondivyananth/aftereffects-mcp.git && cd aftereffects-mcp && ./install.sh</code></div><button class="copy" type="button">Copy</button></div>
         <div class="cmd"><span class="n">2</span><div class="body"><span>Relaunch After Effects, then open the panel</span><code>Window ▸ Extensions ▸ AE MCP Bridge</code></div><button class="copy" type="button">Copy</button></div>
         <div class="cmd"><span class="n">3</span><div class="body"><span>Connect your MCP client (Claude Code shown)</span><code>claude mcp add after-effects -- node "$PWD/mcp/ae-mcp.js"</code></div><button class="copy" type="button">Copy</button></div>
       </div>
@@ -350,7 +351,7 @@
     { "@type": "Question", "name": "What is an After Effects MCP server?", "acceptedAnswer": { "@type": "Answer", "text": "MCP (the Model Context Protocol) is the standard way AI assistants call tools. AE MCP Bridge is an MCP server whose tools reach into a running copy of Adobe After Effects, so an assistant like Claude can read your comps, render frames to look at, and make edits directly." } },
     { "@type": "Question", "name": "Which AI clients does it work with?", "acceptedAnswer": { "@type": "Answer", "text": "Any MCP client, including Claude Code, Claude Desktop and Cursor. It needs no API key: your client brings its own model." } },
     { "@type": "Question", "name": "Will it change my project without asking?", "acceptedAnswer": { "@type": "Answer", "text": "No. A sandbox guard only allows edits to the project you mark as the sandbox, and only you can change that, from the panel. Every edit is one step in Edit > Undo." } },
-    { "@type": "Question", "name": "Which versions of After Effects are supported?", "acceptedAnswer": { "@type": "Answer", "text": "After Effects 2022 (22.0) and later on macOS, using a CEP panel and ExtendScript." } },
+    { "@type": "Question", "name": "Which versions of After Effects are supported?", "acceptedAnswer": { "@type": "Answer", "text": "After Effects 2022 (22.0) and later, on macOS and Windows, using a CEP panel and ExtendScript." } },
     { "@type": "Question", "name": "Can it render video?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. It runs background renders with aerender, drives the Render Queue, and can hand jobs to Adobe Media Encoder." } }
   ]
 }

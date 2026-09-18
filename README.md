@@ -19,7 +19,7 @@ Works with [Claude Code](https://claude.com/claude-code) or any client that
 speaks the [Model Context Protocol](https://modelcontextprotocol.io). Nothing in
 the bridge is client-specific.
 
-MIT licensed · macOS · After Effects 2022+ · zero npm dependencies
+MIT licensed · macOS and Windows · After Effects 2022+ · zero npm dependencies
 
 > Not affiliated with or endorsed by Adobe or Anthropic.
 
@@ -37,7 +37,7 @@ looks at the frame instead of reasoning blind about coordinates. Ask "is the
 logo colliding with the lower third at 4 seconds?" and it can check.
 
 **Edit with a real undo story.** Every call runs inside one
-`beginUndoGroup`/`endUndoGroup`. Anything the model does is a single ⌘Z. There
+`beginUndoGroup`/`endUndoGroup`. Anything the model does is a single ⌘Z (Ctrl+Z on Windows). There
 is no half-applied state to clean up.
 
 **Judge motion, not just numbers.** `ae_review_motion` samples a time range,
@@ -68,8 +68,10 @@ a background `aerender` job that doesn't freeze the app.
 
 ## Install
 
-Requires **After Effects 2022 (22.0)+**, **Node.js 18+**, and macOS.
-`ffmpeg` is optional but recommended — it powers motion review.
+Requires **After Effects 2022 (22.0)+** and **Node.js 18+**, on **macOS or
+Windows**. `ffmpeg` is optional but recommended: it powers motion review and
+contact sheets, and on Windows it also scales preview images (macOS uses the
+built-in `sips`).
 
 **From npm:**
 
@@ -83,18 +85,24 @@ claude mcp add after-effects -- npx -y aftereffects-mcp
 ```bash
 git clone https://github.com/solomondivyananth/aftereffects-mcp.git
 cd aftereffects-mcp
-./install.sh              # symlink the panel, enable unsigned extensions
+./install.sh              # macOS: link the panel, enable unsigned extensions
+install.cmd               # Windows: the same (a directory junction, no admin needed)
 ```
 
 Then **relaunch After Effects** (`PlayerDebugMode` is read at launch) and open
 **Window ▸ Extensions ▸ AE MCP Bridge**. A green dot and
 `Listening on 127.0.0.1:7788` means it's ready.
 
-| Flag | |
+| Command | |
 |---|---|
-| `./install.sh` | symlink install — edits in the repo are live |
-| `./install.sh --copy` | real copy, for when AE won't follow a symlink (use `./sync.sh` after edits) |
-| `./install.sh --global` | also register the MCP server for every directory |
+| `./install.sh` · `install.cmd` | linked install: edits in the repo are live |
+| `./install.sh --copy` · `install.cmd --copy` | real copy, for when AE won't follow the link (re-run after edits) |
+| `./install.sh --global` | macOS: also register the MCP server for every directory |
+| `node bin/install-panel.js --uninstall` | remove the panel (either platform) |
+
+Where it goes: `~/Library/Application Support/Adobe/CEP/extensions` on macOS,
+`%APPDATA%\Adobe\CEP\extensions` on Windows. Unsigned panels are enabled with
+`PlayerDebugMode` (macOS `defaults`, Windows `HKCU\Software\Adobe\CSXS.*`).
 
 The included `.mcp.json` registers the server for this project directory, so
 Claude Code picks the tools up automatically when run from the repo.
@@ -239,8 +247,8 @@ panel/           CEP extension loaded by After Effects
 mcp/ae-mcp.js    MCP server — zero dependencies, stdio JSON-RPC
 scripts/          check.js (npm test), live tests (npm run test:live), record-welcome.js
 docs/            the website (GitHub Pages) and the welcome animation
-install.sh       panel install + PlayerDebugMode
-sync.sh          push local edits into a --copy install
+bin/install-panel.js  panel installer for macOS and Windows
+install.sh · install.cmd  wrappers for a linked install from source
 skills/          ae-mcp-bridge skill — teaches a model how to use the tools
 ```
 
@@ -272,8 +280,9 @@ Yes, via `aerender` as a background job that doesn't block the app. It saves the
 project first, because `aerender` reads the `.aep` from disk.
 
 **Does it work on Windows?**
-Not yet. The bridge and MCP server are portable, but the installer, the `sips`
-image downscaling and the CEP paths are macOS-specific. PRs welcome.
+Yes. The installer, image scaling, `aerender` discovery and paths all handle
+Windows, and CI runs the checks on Windows and macOS. The live After Effects
+test suite has so far been run on macOS; reports from Windows users are welcome.
 
 **Why CEP and not UXP?**
 After Effects 2026 ships UXP, but it hosts only Adobe's own plugins — there's no
@@ -281,7 +290,7 @@ public AE DOM API through it yet. CEP with ExtendScript is the only route to the
 full object model today.
 
 **Is the panel signed?**
-No. `install.sh` enables `PlayerDebugMode`, which is how unsigned extensions load
+No. The installer enables `PlayerDebugMode`, which is how unsigned extensions load
 during development. Distributing to non-developers would need ZXP signing.
 
 ---
@@ -292,8 +301,7 @@ during development. Distributing to non-developers would need ZXP signing.
 proven against real production projects. The authoring and render tools are
 built and wired but have had less mileage. No tests or CI yet.
 
-Contributions welcome, particularly Windows support, a test suite, and ZXP
-packaging.
+Contributions welcome, particularly Windows test reports and ZXP packaging.
 
 ## License
 

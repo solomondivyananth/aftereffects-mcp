@@ -17,6 +17,11 @@ async function setState(patch) {
 }
 const check = record;
 
+if (process.platform !== 'darwin') {
+  console.log('SKIP guard.test.js: it reconfigures the panel by reloading it, which needs macOS. tools.test.js runs everywhere.');
+  process.exit(0);
+}
+
 (async () => {
   const original = JSON.parse(fs.readFileSync(STATE, 'utf8'));
   let info = await call('project_info');

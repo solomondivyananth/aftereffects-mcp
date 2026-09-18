@@ -124,8 +124,21 @@ function runAsync(bin, argv) {
   });
 }
 
-/* sips (built into macOS) fits a full-size PNG into a box that is sane to
-   send through the model. */
+/* Fit a full-size PNG into a box that is sane to send through the model:
+   sips on macOS (built in), ffmpeg elsewhere, or the original if neither. */
+async function scaleInto(src, dst, box) {
+  if (process.platform === 'darwin') {
+    try { await runAsync('sips', ['-Z', String(box), src, '--out', dst]); return fs.existsSync(dst); } catch (e) {}
+  }
+  const ffmpeg = findFfmpeg();
+  if (!ffmpeg) { return false; }
+  try {
+    await runAsync(ffmpeg, ['-y', '-loglevel', 'error', '-i', src, '-vf',
+      'scale=w=' + box + ':h=' + box + ':force_original_aspect_ratio=decrease', dst]);
+    return fs.existsSync(dst);
+  } catch (e) { return false; }
+}
+
 async function pngToBase64(srcPath, keep, downscale, width) {
   if (!(await waitForStableFile(srcPath))) {
     throw new Error('After Effects never finished writing ' + srcPath);
@@ -134,11 +147,8 @@ async function pngToBase64(srcPath, keep, downscale, width) {
   /* Scale in place beside the source: the OS temp dir isn't writable from
      every context this server gets spawned in. */
   const scaled = srcPath.replace(/\.png$/i, '') + '_scaled.png';
-  try {
-    const box = downscale > 1 && width ? Math.min(MAX_IMAGE_PX, Math.round(width / downscale)) : MAX_IMAGE_PX;
-    await runAsync('sips', ['-Z', String(box), srcPath, '--out', scaled]);
-    if (fs.existsSync(scaled)) { usePath = scaled; }
-  } catch (e) { /* sips missing or failed — send the original */ }
+  const box = downscale > 1 && width ? Math.min(MAX_IMAGE_PX, Math.round(width / downscale)) : MAX_IMAGE_PX;
+  if (await scaleInto(srcPath, scaled, box)) { usePath = scaled; }
 
   const buf = fs.readFileSync(usePath);
   try { if (usePath !== srcPath) fs.unlinkSync(usePath); } catch (e) {}
@@ -153,12 +163,22 @@ async function pngToBase64(srcPath, keep, downscale, width) {
 let ffmpegPath = null;
 function findFfmpeg() {
   if (ffmpegPath !== null) { return ffmpegPath; }
-  const candidates = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg'];
+  if (process.env.FFMPEG && fs.existsSync(process.env.FFMPEG)) { return (ffmpegPath = process.env.FFMPEG); }
+  /* MCP clients often start servers with a bare PATH, so look in the usual
+     install places before asking the shell. */
+  const candidates = process.platform === 'win32'
+    ? [path.join(process.env.ProgramFiles || 'C:\\Program Files', 'ffmpeg', 'bin', 'ffmpeg.exe'),
+       'C:\\ffmpeg\\bin\\ffmpeg.exe',
+       path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'ffmpeg.exe'),
+       path.join(os.homedir(), 'scoop', 'shims', 'ffmpeg.exe'),
+       'C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe']
+    : ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg'];
   for (const c of candidates) {
-    if (fs.existsSync(c)) { return (ffmpegPath = c); }
+    if (c && fs.existsSync(c)) { return (ffmpegPath = c); }
   }
   try {
-    ffmpegPath = execFileSync('which', ['ffmpeg'], { encoding: 'utf8' }).trim() || false;
+    const out = execFileSync(process.platform === 'win32' ? 'where' : 'which', ['ffmpeg'], { encoding: 'utf8' });
+    ffmpegPath = out.split(/\r?\n/)[0].trim() || false;
   } catch (e) { ffmpegPath = false; }
   return ffmpegPath;
 }

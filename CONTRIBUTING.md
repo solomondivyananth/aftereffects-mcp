@@ -3,7 +3,8 @@
 ## Getting set up
 
 ```bash
-./install.sh          # symlink install — edits in this repo go live
+./install.sh          # macOS: linked install, edits in this repo go live
+install.cmd           # Windows: the same
 ```
 
 Relaunch After Effects, open **Window ▸ Extensions ▸ AE MCP Bridge**.
@@ -13,7 +14,7 @@ so most iteration doesn't need an AE restart. You *do* need a restart when the
 extension ID or `manifest.xml` changes, because CEP only scans the extensions
 folder at launch.
 
-If you installed with `--copy`, run `./sync.sh` before reloading.
+If you installed with `--copy`, re-run the installer with `--copy` before reloading.
 
 ## Debugging
 
