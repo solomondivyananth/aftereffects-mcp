@@ -1,0 +1,68 @@
+{
+  "name": "kinetic-title",
+  "title": "Kinetic Title",
+  "description": "Stomp typography: one word per beat slams in with overshoot, motion blur and a camera shake that decays after each hit; every third word flips to the accent colour with a flash frame. The last word holds. Markers sit on every beat, so it can be timed to music afterwards.",
+  "formats": ["16x9", "9x16", "1x1", "4x5"],
+  "duration": "(len(words) * beat + hold) / fps",
+  "fps": 30,
+  "slots": {
+    "words": { "type": "list", "item": "text", "maxChars": 14, "minItems": 2, "maxItems": 8, "default": ["MAKE", "IT", "MOVE", "ON", "THE", "BEAT"], "describe": "One word (or short phrase) per beat, in order." },
+    "accent": { "type": "color", "default": "#9f8cff", "describe": "Accent background for every third word." },
+    "theme": { "type": "enum", "values": ["dark", "light"], "default": "dark", "describe": "Base background." },
+    "beat": { "type": "number", "default": 9, "min": 5, "max": 30, "describe": "Frames per word. 9 at 30 fps is about 200 BPM energy; 15 is 120 BPM." },
+    "hold": { "type": "number", "default": 36, "min": 12, "max": 120, "describe": "Frames the last word holds." },
+    "font": { "type": "text", "default": "Impact", "maxChars": 60, "describe": "PostScript font name. A heavy condensed face stomps best. Must be installed." },
+    "shake": { "type": "number", "default": 1, "min": 0, "max": 3, "describe": "Camera shake on each hit. 0 turns it off." }
+  },
+  "steps": [
+    { "let": {
+      "bg": "{{theme == 'dark' ? '#101015' : '#efedf5'}}",
+      "ink": "{{theme == 'dark' ? '#ffffff' : '#141418'}}",
+      "last": "{{len(words) - 1}}"
+    } },
+
+    { "tool": "ae_create_comp", "args": { "name": "{{comp}}", "width": "{{W}}", "height": "{{H}}", "frameRate": "{{fps}}", "duration": "{{dur}}", "bgColor": "{{bg}}" } },
+    { "tool": "ae_set_comp_settings", "args": { "comp": "{{comp}}", "settings": { "motionBlur": true, "shutterAngle": 180 } } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "null", "options": { "name": "Controls" } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects"], "add": "ADBE Color Control", "name": "Accent" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent", "Color"], "value": "{{accent}}" } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects"], "add": "ADBE Slider Control", "name": "Shake" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Shake", "Slider"], "value": "{{shake}}" } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "null", "options": { "name": "Rig", "position": ["{{cx}}", "{{cy}}"] } } },
+    { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "Rig", "path": ["Transform", "Position"],
+      "expression": "var m = thisComp.marker, t = 999;\nif (m.numKeys > 0) {\n  var n = m.nearestKey(time).index;\n  if (m.key(n).time > time) { n--; }\n  if (n > 0) { t = time - m.key(n).time; }\n}\nvar k = thisComp.layer(\"Controls\").effect(\"Shake\")(\"Slider\");\nvar amp = 18 * k * Math.exp(-t * 16);\nvalue + [Math.sin(t * 97) * amp, Math.cos(t * 131) * amp * 0.7]" } },
+
+    { "repeat": { "over": "words", "as": "w", "index": "i" }, "steps": [
+      { "let": {
+        "t0": "{{i * beat}}",
+        "t1": "{{i == last ? dur * fps : (i + 1) * beat}}",
+        "hot": "{{i % 3 == 2}}",
+        "size": "{{Math.min(330 * S, W * 0.88 / Math.max(2.2, w.length * 0.58))}}"
+      } },
+      { "tool": "ae_markers", "args": { "comp": "{{comp}}", "action": "add", "marker": { "time": "{{t0 + 'f'}}", "comment": "{{'beat ' + (i + 1)}}" } } },
+      { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "{{'BG ' + (i + 1)}}", "color": "{{hot ? accent : bg}}",
+        "inPoint": "{{t0 + 'f'}}", "outPoint": "{{t1 + 'f'}}" } } },
+      { "when": "hot", "tool": "ae_apply_effect", "args": { "comp": "{{comp}}", "layer": "{{'BG ' + (i + 1)}}", "effect": "ADBE Fill" } },
+      { "when": "hot", "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{'BG ' + (i + 1)}}", "path": ["Effects", "Fill", "Color"], "expression": "thisComp.layer(\"Controls\").effect(\"Accent\")(\"Color\")" } },
+      { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "{{'Word ' + (i + 1)}}", "text": "{{w}}",
+        "style": { "font": "{{font}}", "fontSize": "{{size}}", "fillColor": "{{hot ? '#0e0e12' : ink}}", "justification": "center" },
+        "parent": "Rig", "inPoint": "{{t0 + 'f'}}", "outPoint": "{{t1 + 'f'}}" } } },
+      { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{'Word ' + (i + 1)}}", "path": ["Transform", "Position"], "value": [0, "{{size * 0.36}}"] } },
+      { "tool": "ae_set_layer_props", "args": { "comp": "{{comp}}", "layer": "{{'Word ' + (i + 1)}}", "props": { "motionBlur": true } } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{'Word ' + (i + 1)}}", "path": ["Transform", "Scale"], "keys": [
+        { "time": "{{t0 + 'f'}}", "value": [320, 320], "ease": { "out": 10 } },
+        { "time": "{{(t0 + 3) + 'f'}}", "value": [92, 92], "ease": "easy" },
+        { "time": "{{(t0 + 6) + 'f'}}", "value": [100, 100], "ease": { "in": 80 } } ] } },
+      { "when": "hot", "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "{{'Flash ' + (i + 1)}}", "color": "#ffffff",
+        "inPoint": "{{t0 + 'f'}}", "outPoint": "{{(t0 + 2) + 'f'}}" } } },
+      { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "{{'Word ' + (i + 1)}}", "path": ["Text", "Source Text"], "name": "{{'Word ' + (i + 1)}}" } }
+    ] },
+
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "properties": [
+      { "layer": "Controls", "path": ["Effects", "Accent", "Color"], "name": "Accent colour" },
+      { "layer": "Controls", "path": ["Effects", "Shake", "Slider"], "name": "Shake" } ] } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "set_name", "name": "{{comp}}" } }
+  ]
+}

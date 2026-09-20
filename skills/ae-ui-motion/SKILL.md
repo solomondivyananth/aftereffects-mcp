@@ -17,10 +17,14 @@ A pale, slowly drifting colour field behind everything, instead of white:
 
 1. A light solid (`#f3f2f8` or similar) as the base.
 2. Three to five large ellipses (`ae_shape`, 900–1400 px) in brand tints,
-   each with `ADBE Gaussian Blur 2` at Blurriness 250–400 and Repeat Edge
-   Pixels on.
-3. Drift each blob with a slow wiggle on Position (`wiggle(0.15, 180)`) so
-   the light moves but nothing draws the eye.
+   at 25–45% opacity. Place them with the shape group's own position
+   (`transform: {position: …}`), leaving the layers centred.
+3. **One** adjustment layer above them with `ADBE Gaussian Blur 2` (Blurriness
+   250–400, Repeat Edge Pixels on). Don't blur each shape: effects on a
+   shape layer are clipped to the shape's bounds, which leaves hard straight
+   edges in the gradient.
+4. Drift each blob with a slow wiggle on its group's Position
+   (`wiggle(0.15, 180)`), so the light moves but nothing draws the eye.
 
 Keep blob saturation low. The UI and the words carry the colour.
 
@@ -36,9 +40,12 @@ separately and move in depth.
   edge is the "rim light" that makes the panel glow against the background.
 - Soft shadow: `ADBE Drop Shadow`, Opacity 10–20%, Softness 60–120,
   Distance 20–40. Never a hard shadow.
-- Precompose the whole screen (`ae_precompose`) and move the precomp. Turn
-  on collapse transformations (`collapseTransformation: true`) so it stays
-  sharp in 3D.
+- Either precompose the whole screen (`ae_precompose`) and move the precomp
+  in 3D, or parent the UI parts to a 3D panel layer. When parenting, **parent
+  while the child is still 2D, then make it 3D**. A layer that is already 3D
+  gets a counter-rotation from the tilted parent and slices through it.
+- The `app-card` template (`ae-ai-templates`) is a working example of this
+  whole setup.
 
 ## Moving screens in space
 

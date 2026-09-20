@@ -13,15 +13,15 @@
 <meta property="og:site_name" content="AE MCP Bridge">
 <meta property="og:url" content="https://solomondivyananth.github.io/aftereffects-mcp/">
 <meta property="og:title" content="AE MCP Bridge · After Effects MCP server for AI agents">
-<meta property="og:description" content="Let AI work inside a live After Effects project. 46 tools: read layers, render frames, edit keyframes, expressions, masks and shapes. One undo per edit, on macOS and Windows.">
+<meta property="og:description" content="Let AI work inside a live After Effects project. 50 tools: read layers, render frames, edit keyframes, expressions, masks and shapes. One undo per edit, on macOS and Windows.">
 <meta property="og:image" content="https://solomondivyananth.github.io/aftereffects-mcp/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="AE MCP Bridge: 46 tools, skills, live in your timeline">
+<meta property="og:image:alt" content="AE MCP Bridge: 50 tools, skills, live in your timeline">
 <meta property="og:video" content="https://solomondivyananth.github.io/aftereffects-mcp/assets/welcome.mp4">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="AE MCP Bridge · After Effects MCP server for AI agents">
-<meta name="twitter:description" content="Let AI work inside a live After Effects project. 46 tools, one undo per edit. macOS and Windows.">
+<meta name="twitter:description" content="Let AI work inside a live After Effects project. 50 tools, 18 skills, AI-native templates. macOS and Windows.">
 <meta name="twitter:image" content="https://solomondivyananth.github.io/aftereffects-mcp/assets/og.png">
 <script type="application/ld+json">
 {
@@ -287,9 +287,9 @@
 
   <section id="tools">
     <div class="wrap">
-      <div class="marker"><i></i>0:00:07:28 · 46</div>
-      <h2>47 tools. Sixteen skills.</h2>
-      <p class="intro">The skills teach the craft as well as the tools: motion principles, typography, expressions, effects and blur, transitions, morphs, camera and 3D, colour, audio sync, templates and MOGRTs, data-driven charts, UI and product-launch motion, delivery, reverse-engineering a reference, and frame-by-frame review against it. Clients that don't load skills get the same guides as MCP prompts.</p>
+      <div class="marker"><i></i>0:00:07:28 · 50</div>
+      <h2>50 tools. Eighteen skills. Seven templates.</h2>
+      <p class="intro">The skills teach the craft as well as the tools: motion principles, typography, expressions, effects and blur, transitions, morphs, camera and 3D, colour, audio sync, templates and MOGRTs, data-driven charts, UI and product-launch motion, delivery, reverse-engineering a reference, and frame-by-frame review against it. Clients that don't load skills get the same guides as MCP prompts. And seven AI-native templates (lower third, kinetic title, word reveal, app card, bar chart, logo sting and the welcome) build from a brief in any format with <code>ae_template</code>.</p>
       <div class="groups" id="groups"></div>
     </div>
   </section>
@@ -393,10 +393,12 @@
   var G = [
     ['Read', ['ae_project_info', 'ae_comp_tree', 'ae_layer_detail', 'ae_find_animation', 'ae_selection', 'ae_list_items', 'ae_catalog']],
     ['See & show', ['ae_render_frame', 'ae_review_motion', 'ae_goto']],
+    ['Proof-read', ['ae_proof']],
     ['Animate', ['ae_set_property', 'ae_add_keyframes', 'ae_edit_keyframes', 'ae_set_expression', 'ae_clear_expression', 'ae_apply_effect', 'ae_apply_preset', 'ae_text', 'ae_markers', 'ae_masks', 'ae_shape', 'ae_add_property', 'ae_remove_property', 'ae_property_meta']],
     ['Layers', ['ae_create_layer', 'ae_delete_layer', 'ae_set_layer_props', 'ae_layer_action']],
     ['Project', ['ae_create_comp', 'ae_set_comp_settings', 'ae_duplicate_comp', 'ae_precompose', 'ae_import_file', 'ae_item_action', 'ae_essential_graphics', 'ae_delete_item', 'ae_new_project', 'ae_open_project', 'ae_save_project']],
     ['Render', ['ae_render_video', 'ae_render_status', 'ae_render_cancel', 'ae_render_queue']],
+    ['Templates', ['ae_template', 'ae_welcome']],
     ['Control', ['ae_undo', 'ae_batch', 'ae_menu_command', 'ae_run_jsx']]
   ];
   G.forEach(function (g) {

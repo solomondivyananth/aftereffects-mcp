@@ -10,8 +10,11 @@ render deliberately, and check the file after it.
 
 ## 1. Pre-flight
 
-Run these reads before any final render and report what you find. Don't
-fix silently.
+Start with `ae_proof {"comp": "…"}` on every comp you are delivering: it
+screens 37 mechanical faults at once — overlaps, clipped edges, jitter, pops,
+unreadable type, broken expressions, switches left on — and returns the times
+to look at (`ae-motion-proof`). Then run these reads, and report what you
+find. Don't fix silently.
 
 | Check | How |
 |---|---|

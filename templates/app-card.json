@@ -1,0 +1,110 @@
+{
+  "name": "app-card",
+  "title": "App Card",
+  "description": "Product and AI-app launch shot: a rim-lit app panel swings in from a 3D tilt over a drifting mesh gradient and settles; a greeting arrives word by word, a prompt fades up, and suggestion chips rise one after another. Use for feature reveals, onboarding and UI demos.",
+  "formats": ["16x9", "9x16", "1x1", "4x5"],
+  "duration": 6,
+  "fps": 30,
+  "slots": {
+    "greeting": { "type": "text", "default": "Good morning, Sam.", "maxChars": 28, "required": true, "describe": "The big line at the top of the panel." },
+    "prompt": { "type": "text", "default": "What should we make today?", "maxChars": 40, "describe": "The quieter line under it." },
+    "chips": { "type": "list", "item": "text", "maxChars": 30, "minItems": 1, "maxItems": 3, "default": ["Plan a weekend trip", "Summarize my notes", "Draft a reply"], "describe": "Suggestion chips, left to right." },
+    "accent": { "type": "color", "default": "#7a5cff", "describe": "Greeting colour and panel edge light." },
+    "accent2": { "type": "color", "default": "#ff7ab8", "describe": "Second background colour." },
+    "theme": { "type": "enum", "values": ["light", "dark"], "default": "light", "describe": "light: white panel on a pale field. dark: night mode." }
+  },
+  "steps": [
+    { "let": {
+      "base": "{{theme == 'light' ? '#f3f2f8' : '#0e0d14'}}",
+      "panel": "{{theme == 'light' ? '#ffffff' : '#1a1924'}}",
+      "chipFill": "{{theme == 'light' ? '#f1eff8' : '#262532'}}",
+      "ink": "{{theme == 'light' ? '#16151c' : '#ffffff'}}",
+      "muted": "{{theme == 'light' ? '#6b6780' : '#aaa6bf'}}",
+      "cw": "{{portrait ? W * 0.86 : W * 0.58}}",
+      "ch": "{{portrait ? H * 0.46 : H * 0.62}}"
+    } },
+    { "let": { "pad": "{{cw * 0.07}}", "gap": "{{16 * S}}" } },
+    { "let": { "chipW": "{{(cw - 2 * pad - (len(chips) - 1) * gap) / len(chips)}}", "chipH": "{{Math.max(56, ch * 0.16)}}" } },
+
+    { "tool": "ae_create_comp", "args": { "name": "{{comp}}", "width": "{{W}}", "height": "{{H}}", "frameRate": "{{fps}}", "duration": "{{dur}}", "bgColor": "{{base}}" } },
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "Base", "color": "{{base}}" } } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "null", "options": { "name": "Controls" } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects"], "add": ["ADBE Color Control", "ADBE Color Control"] } },
+    { "tool": "ae_property_meta", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Color Control"], "name": "Accent" } },
+    { "tool": "ae_property_meta", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Color Control 2"], "name": "Accent 2" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent", "Color"], "value": "{{accent}}" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent 2", "Color"], "value": "{{accent2}}" } },
+
+    { "repeat": { "over": "[['Blob A', 'Accent', -0.3, -0.25, 0.7], ['Blob B', 'Accent 2', 0.32, 0.22, 0.65]]", "as": "b", "index": "i" }, "steps": [
+      { "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "{{b[0]}}", "shape": "ellipse", "size": ["{{W * b[4]}}", "{{W * b[4]}}"], "fill": "{{b[1] == 'Accent' ? accent : accent2}}",
+        "transform": { "position": ["{{W * b[2]}}", "{{H * b[3]}}"] } } },
+      { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{b[0]}}", "path": ["Transform", "Opacity"], "value": "{{theme == 'light' ? 28 : 40}}" } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{b[0]}}", "path": ["Contents", "{{b[0]}}", "Contents", "Fill 1", "Color"], "expression": "{{'thisComp.layer(\"Controls\").effect(\"' + b[1] + '\")(\"Color\")'}}" } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{b[0]}}", "path": ["Contents", "{{b[0]}}", "Transform", "Position"], "expression": "{{'seedRandom(' + (i + 11) + ', true); wiggle(0.15, ' + Math.round(150 * S) + ')'}}" } }
+    ] },
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "adjustment", "options": { "name": "Soften" } } },
+    { "tool": "ae_apply_effect", "args": { "comp": "{{comp}}", "layer": "Soften", "effect": "ADBE Gaussian Blur 2", "params": { "Blurriness": "{{Math.round(300 * S)}}", "Repeat Edge Pixels": 1 } } },
+
+    { "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "Card", "shape": "rect", "size": ["{{cw}}", "{{ch}}"], "roundness": "{{36 * S}}",
+      "fill": "{{panel}}", "stroke": { "color": "{{accent}}", "width": "{{2 * S}}", "opacity": 70 } } },
+    { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "Card", "path": ["Contents", "Card", "Contents", "Stroke 1", "Color"], "expression": "thisComp.layer(\"Controls\").effect(\"Accent\")(\"Color\")" } },
+    { "tool": "ae_apply_effect", "args": { "comp": "{{comp}}", "layer": "Card", "effect": "ADBE Drop Shadow", "params": { "Opacity": "{{theme == 'light' ? 22 : 60}}", "Direction": 180, "Distance": "{{30 * S}}", "Softness": "{{110 * S}}" } } },
+    { "tool": "ae_set_layer_props", "args": { "comp": "{{comp}}", "layer": "Card", "props": { "threeDLayer": true } } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Card", "path": ["Transform", "Position"], "keys": [
+      { "time": "0f", "value": ["{{cx}}", "{{cy + 40 * S}}", "{{700 * S}}"], "ease": { "out": 15 } },
+      { "time": "32f", "value": ["{{cx}}", "{{cy}}", 0], "ease": { "in": 90 } } ] } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Card", "path": ["Transform", "Y Rotation"], "keys": [
+      { "time": "0f", "value": -28, "ease": { "out": 15 } }, { "time": "32f", "value": -7, "ease": { "in": 90 } }, { "time": "{{dur + 's'}}", "value": -3 } ] } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Card", "path": ["Transform", "X Rotation"], "keys": [
+      { "time": "0f", "value": 14, "ease": { "out": 15 } }, { "time": "32f", "value": 5, "ease": { "in": 90 } }, { "time": "{{dur + 's'}}", "value": 3 } ] } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Card", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "0f", "value": 0 }, { "time": "10f", "value": 100 } ] } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Greeting", "text": "{{greeting}}",
+      "style": { "fontSize": "{{Math.min(64 * S, (cw - 2 * pad) / Math.max(8, greeting.length * 0.5))}}", "fillColor": "{{accent}}", "justification": "left", "tracking": -15 },
+      "threeD": true, "parent": "Card", "position": ["{{-cw / 2 + pad}}", "{{-ch / 2 + ch * 0.26}}"] } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Greeting", "path": ["Text", "Animators"], "add": "ADBE Text Animator", "name": "In",
+      "animate": ["ADBE Text Opacity", "ADBE Text Blur", "ADBE Text Position 3D"] } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Greeting", "path": ["Text", "Animators", "In", "Selectors"], "add": "ADBE Text Selector" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Greeting", "path": ["Text", "Animators", "In", "Properties", "Opacity"], "value": 0 } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Greeting", "path": ["Text", "Animators", "In", "Properties", "Blur"], "value": [14, 14] } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Greeting", "path": ["Text", "Animators", "In", "Properties", "Position"], "value": [0, "{{20 * S}}", 0] } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Greeting", "path": ["Text", "Animators", "In", "Selectors", "Range Selector 1", "Advanced", "Based On"], "value": 3 } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Greeting", "path": ["Text", "Animators", "In", "Selectors", "Range Selector 1", "Advanced", "Shape"], "value": 2 } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Greeting", "path": ["Text", "Animators", "In", "Selectors", "Range Selector 1", "Offset"], "keys": [
+      { "time": "18f", "value": -100 }, { "time": "44f", "value": 100, "ease": { "in": 80 } } ] } },
+
+    { "when": "prompt.length > 0", "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Prompt", "text": "{{prompt}}",
+      "style": { "fontSize": "{{Math.min(40 * S, (cw - 2 * pad) / Math.max(10, prompt.length * 0.5))}}", "fillColor": "{{muted}}", "justification": "left" },
+      "threeD": true, "parent": "Card", "position": ["{{-cw / 2 + pad}}", "{{-ch / 2 + ch * 0.4}}"] } } },
+    { "when": "prompt.length > 0", "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Prompt", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "36f", "value": 0 }, { "time": "54f", "value": 100, "ease": { "in": 80 } } ] } },
+
+    { "repeat": { "over": "chips", "as": "c", "index": "i" }, "steps": [
+      { "let": { "chip": "{{'Chip ' + (i + 1)}}", "px": "{{-cw / 2 + pad + chipW / 2 + i * (chipW + gap)}}", "py": "{{ch / 2 - pad - chipH / 2}}", "t0": "{{50 + i * 5}}" } },
+      { "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "{{chip}}", "shape": "rect", "size": ["{{chipW}}", "{{chipH}}"], "roundness": "{{chipH / 2}}", "fill": "{{chipFill}}",
+        "position": ["{{chipW / 2}}", "{{chipH / 2}}"] } },
+      { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{chip}}", "path": ["Transform", "Anchor Point"], "value": ["{{chipW / 2}}", "{{chipH / 2}}"] } },
+      { "tool": "ae_set_layer_props", "args": { "comp": "{{comp}}", "layer": "{{chip}}", "props": { "threeDLayer": true, "parent": "Card" } } },
+      { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "{{chip + ' Text'}}", "text": "{{c}}",
+        "style": { "fontSize": "{{Math.min(24 * S, chipW / Math.max(8, c.length * 0.55))}}", "fillColor": "{{ink}}", "justification": "left" },
+        "threeD": true, "parent": "{{chip}}", "position": ["{{chipW / 2}}", "{{chipH / 2}}", -1] } } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{chip + ' Text'}}", "path": ["Transform", "Anchor Point"],
+        "expression": "var r = sourceRectAtTime(time, false);\n[r.left + r.width / 2, r.top + r.height / 2, 0]" } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{chip}}", "path": ["Transform", "Position"], "keys": [
+        { "time": "{{t0 + 'f'}}", "value": ["{{px}}", "{{py + 40 * S}}", 0], "ease": { "out": 20 } },
+        { "time": "{{(t0 + 16) + 'f'}}", "value": ["{{px}}", "{{py}}", 0], "ease": { "in": 88 } } ] } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layers": ["{{chip}}", "{{chip + ' Text'}}"], "path": ["Transform", "Opacity"], "keys": [
+        { "time": "{{t0 + 'f'}}", "value": 0 }, { "time": "{{(t0 + 10) + 'f'}}", "value": 100 } ] } },
+      { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "{{chip + ' Text'}}", "path": ["Text", "Source Text"], "name": "{{'Suggestion ' + (i + 1)}}" } }
+    ] },
+
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Greeting", "path": ["Text", "Source Text"], "name": "Greeting" } },
+    { "when": "prompt.length > 0", "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Prompt", "path": ["Text", "Source Text"], "name": "Prompt" } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "properties": [
+      { "layer": "Controls", "path": ["Effects", "Accent", "Color"], "name": "Accent colour" },
+      { "layer": "Controls", "path": ["Effects", "Accent 2", "Color"], "name": "Background colour" } ] } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "set_name", "name": "{{comp}}" } }
+  ]
+}

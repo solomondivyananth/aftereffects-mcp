@@ -1,0 +1,80 @@
+{
+  "name": "bar-chart",
+  "title": "Bar Chart",
+  "description": "An animated bar chart from a short list of labelled values: the axis draws on, bars grow from the baseline one after another with a soft landing, each value counts up riding on top of its bar (tied to the bar's real height), and labels sit underneath. Values are scaled to the largest one.",
+  "formats": ["16x9", "9x16", "1x1", "4x5"],
+  "duration": 6,
+  "fps": 30,
+  "slots": {
+    "title": { "type": "text", "default": "Growth by region", "maxChars": 48, "describe": "Chart title. Empty hides it." },
+    "items": { "type": "list", "item": { "label": { "maxChars": 14 }, "value": "number" }, "minItems": 2, "maxItems": 8,
+      "default": [{ "label": "North", "value": 42 }, { "label": "South", "value": 78 }, { "label": "East", "value": 55 }, { "label": "West", "value": 91 }],
+      "describe": "Bars in order: [{label, value}], values zero or more." },
+    "unit": { "type": "text", "default": "%", "maxChars": 6, "describe": "Appended to each value, e.g. \"%\", \"k\", \" pts\"." },
+    "accent": { "type": "color", "default": "#7a5cff", "describe": "Bar colour." },
+    "theme": { "type": "enum", "values": ["light", "dark"], "default": "light", "describe": "Background." }
+  },
+  "steps": [
+    { "let": {
+      "bg": "{{theme == 'light' ? '#f4f3f8' : '#111018'}}",
+      "ink": "{{theme == 'light' ? '#16151c' : '#ffffff'}}",
+      "muted": "{{theme == 'light' ? '#6b6780' : '#a9a5bd'}}",
+      "x0": "{{W * (portrait ? 0.1 : 0.12)}}",
+      "areaW": "{{W * (portrait ? 0.8 : 0.76)}}",
+      "base": "{{H * (portrait ? 0.74 : 0.8)}}",
+      "maxH": "{{H * (portrait ? 0.4 : 0.46)}}",
+      "top": "{{max(items, 'value') || 1}}",
+      "n": "{{len(items)}}"
+    } },
+    { "let": { "step": "{{areaW / n}}", "barW": "{{Math.min(areaW / n * 0.58, 220 * S)}}" } },
+
+    { "tool": "ae_create_comp", "args": { "name": "{{comp}}", "width": "{{W}}", "height": "{{H}}", "frameRate": "{{fps}}", "duration": "{{dur}}", "bgColor": "{{bg}}" } },
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "Background", "color": "{{bg}}" } } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "null", "options": { "name": "Controls" } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects"], "add": "ADBE Color Control", "name": "Accent" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent", "Color"], "value": "{{accent}}" } },
+
+    { "when": "title.length > 0", "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Title", "text": "{{title}}",
+      "style": { "fontSize": "{{56 * S}}", "fillColor": "{{ink}}", "justification": "left", "tracking": -10 },
+      "position": ["{{x0}}", "{{H * (portrait ? 0.2 : 0.17)}}"] } } },
+    { "when": "title.length > 0", "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Title", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "0f", "value": 0 }, { "time": "14f", "value": 100, "ease": { "in": 80 } } ] } },
+
+    { "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "Axis", "shape": "rect", "size": ["{{areaW}}", "{{3 * S}}"], "fill": "{{muted}}",
+      "position": ["{{areaW / 2}}", 0] } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Axis", "path": ["Transform", "Position"], "value": ["{{x0}}", "{{base}}"] } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Axis", "path": ["Transform", "Scale"], "keys": [
+      { "time": "4f", "value": [0, 100], "ease": { "out": 20 } }, { "time": "20f", "value": [100, 100], "ease": { "in": 85 } } ] } },
+
+    { "repeat": { "over": "items", "as": "it", "index": "i" }, "steps": [
+      { "let": { "x": "{{x0 + step * (i + 0.5)}}", "t0": "{{0.45 + i * 0.09}}", "bar": "{{'Bar ' + (i + 1)}}" } },
+      { "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "{{bar}}", "shape": "rect", "size": ["{{barW}}", "{{maxH}}"], "roundness": "{{Math.min(10 * S, barW / 4)}}",
+        "fill": "{{accent}}", "position": [0, "{{-maxH / 2}}"] } },
+      { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{bar}}", "path": ["Transform", "Position"], "value": ["{{x}}", "{{base}}"] } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{bar}}", "path": ["Contents", "{{bar}}", "Contents", "Fill 1", "Color"], "expression": "thisComp.layer(\"Controls\").effect(\"Accent\")(\"Color\")" } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{bar}}", "path": ["Transform", "Scale"], "keys": [
+        { "time": "{{t0}}", "value": [100, 0], "ease": { "out": 20 } },
+        { "time": "{{t0 + 0.8}}", "value": [100, "{{Number(it.value) / top * 100}}"], "ease": { "in": 85 } } ] } },
+
+      { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "{{'Value ' + (i + 1)}}", "text": "0",
+        "style": { "fontSize": "{{Math.min(44 * S, step * 0.34)}}", "fillColor": "{{ink}}", "justification": "center" } } } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{'Value ' + (i + 1)}}", "path": ["Transform", "Position"],
+        "expression": "{{'var b = thisComp.layer(\"' + bar + '\");\\nvar h = ' + maxH + ' * b.transform.scale[1] / 100;\\n[' + x + ', ' + base + ' - h - ' + (18 * S) + ']'}}" } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{'Value ' + (i + 1)}}", "path": ["Text", "Source Text"],
+        "expression": "{{'var b = thisComp.layer(\"' + bar + '\");\\nMath.round(b.transform.scale[1] / 100 * ' + top + ') + \"' + unit + '\"'}}" } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{'Value ' + (i + 1)}}", "path": ["Transform", "Opacity"], "keys": [
+        { "time": "{{t0}}", "value": 0 }, { "time": "{{t0 + 0.25}}", "value": 100 } ] } },
+
+      { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "{{'Label ' + (i + 1)}}", "text": "{{it.label}}",
+        "style": { "fontSize": "{{Math.min(30 * S, step * 0.24)}}", "fillColor": "{{muted}}", "justification": "center" },
+        "position": ["{{x}}", "{{base + 46 * S}}"] } } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{'Label ' + (i + 1)}}", "path": ["Transform", "Opacity"], "keys": [
+        { "time": "{{t0 - 0.1}}", "value": 0 }, { "time": "{{t0 + 0.3}}", "value": 100, "ease": { "in": 80 } } ] } }
+    ] },
+
+    { "when": "title.length > 0", "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Title", "path": ["Text", "Source Text"], "name": "Title" } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Controls", "path": ["Effects", "Accent", "Color"], "name": "Bar colour" } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "set_name", "name": "{{comp}}" } }
+  ]
+}

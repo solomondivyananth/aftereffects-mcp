@@ -26,12 +26,13 @@
     "aftereffects-mcp": "mcp/ae-mcp.js",
     "aftereffects-mcp-install": "bin/install-panel.js"
   },
-  "files": ["mcp/", "panel/", "bin/", "skills/", "install.sh", "install.cmd", "sync.sh", "README.md", "SECURITY.md", "LICENSE"],
+  "files": ["mcp/", "panel/", "bin/", "skills/", "templates/", "install.sh", "install.cmd", "sync.sh", "README.md", "SECURITY.md", "LICENSE"],
   "engines": { "node": ">=18" },
   "os": ["darwin", "win32"],
   "dependencies": {},
   "scripts": {
     "test": "node scripts/check.js",
+    "skills": "node scripts/link-skills.js",
     "test:live": "node scripts/live/tools.test.js && node scripts/live/guard.test.js",
     "postinstall": "node -e \"console.log('\\naftereffects-mcp: run npx aftereffects-mcp-install to install the After Effects panel.\\n')\""
   }

@@ -1,6 +1,6 @@
 # AE MCP Bridge: an After Effects MCP server for AI agents
 
-<a href="https://solomondivyananth.github.io/aftereffects-mcp/"><img src="docs/assets/welcome.gif" alt="AE MCP Bridge: After Effects meets AI. Read every layer, see every frame, edit live. 46 tools plus skills, in your timeline." width="100%"></a>
+<a href="https://solomondivyananth.github.io/aftereffects-mcp/"><img src="docs/assets/welcome.gif" alt="AE MCP Bridge: After Effects meets AI. Read every layer, see every frame, edit live. 50 tools plus skills, in your timeline." width="100%"></a>
 
 <p align="center"><a href="https://solomondivyananth.github.io/aftereffects-mcp/"><b>Website</b></a> · <a href="docs/assets/welcome.mp4">Watch in HD</a> · <a href="#install">Install</a> · <a href="#tools">Tools</a></p>
 
@@ -157,13 +157,16 @@ but by then the code has already run. See [SECURITY.md](SECURITY.md).
 
 ## Tools
 
-47 tools, named and shaped after After Effects itself.
+50 tools, named and shaped after After Effects itself.
 
 **Read** — `ae_project_info` · `ae_comp_tree` · `ae_layer_detail` ·
 `ae_find_animation` · `ae_selection` · `ae_list_items` · `ae_catalog`
 (effects, presets, fonts, render templates)
 
 **See & show** — `ae_render_frame` · `ae_review_motion` · `ae_goto`
+
+**Proof-read** — `ae_proof` (37 checks: overlaps, clipped edges, jitter,
+pops, off-grid keys, unreadable text, missing motion blur, switches left on)
 
 **Animate** — `ae_set_property` · `ae_add_keyframes` · `ae_edit_keyframes` ·
 `ae_set_expression` · `ae_clear_expression` · `ae_apply_effect` ·
@@ -181,16 +184,33 @@ centre anchor, copy to comp)
 **Render** — `ae_render_video` · `ae_render_status` · `ae_render_cancel` ·
 `ae_render_queue` (Render Queue panel and Media Encoder)
 
+**Templates** — `ae_template` · `ae_welcome`
+
 **Control** — `ae_undo` · `ae_batch` · `ae_menu_command` · `ae_run_jsx`
+
+### AI-native templates
+
+Finished, animated designs an agent fills from a brief: a lower third, a
+kinetic stomp title, a soft word reveal, an app/UI card in 3D, an animated bar
+chart, a logo sting, and the bridge's own welcome. Each is a JSON recipe in
+`templates/` with typed slots (text with length limits, colours, lists,
+options). `ae_template` builds one in 16:9, 9:16, 1:1 or 4:5 as a single undo
+step, rolls back on any failure, and returns a contact sheet. Builds come
+with a Controls layer and Essential Graphics controls for people to edit.
+`ae_welcome` builds the welcome, the quickest way to prove a new install
+works. `npm test` validates every template in every format.
 
 ### Skills
 
-Sixteen skills ship in `skills/`. Claude Code loads them automatically in this
-repo, and every MCP client gets them as prompts of the same name.
+Eighteen skills ship in `skills/`. **Every MCP client gets them as prompts of
+the same name**, so they work in Claude Desktop, Codex, Cursor and the rest
+with no setup. Claude Code reads skills from a `.claude/skills` folder
+instead — run `npm run skills` in a clone to link them into this repo, or
+`npm run skills -- --user` to load them in every project on the machine.
 
 | Skill | What it teaches |
 |---|---|
-| `ae-mcp-bridge` | the tools: read → edit → look, addressing, guard refusals |
+| `ae-mcp-bridge` | the tools: read → edit → look → proof, addressing, guard refusals |
 | `ae-motion-principles` | timing in frames, easing that reads, overshoot, stagger, stomp type |
 | `ae-expressions` | a cookbook of expressions, each one verified to compile in After Effects |
 | `ae-effects` | glows, noise, particles, glitch, and every kind of blur and motion blur |
@@ -203,6 +223,8 @@ repo, and every MCP client gets them as prompts of the same name.
 | `ae-audio-sync` | beat finder (tempo, hits, grid) to comp markers, cutting and pulsing to music |
 | `ae-templates` | Controls nulls, Essential Graphics controls, `.mogrt` export, robust templates |
 | `ae-data-driven` | CSV/JSON as footage in expressions, charts, one version per row |
+| `ae-ai-templates` | fill the built-in templates from a brief, and write new ones |
+| `ae-motion-proof` | screen a comp for overlaps, jitter, pops and unreadable text, then verify on frames |
 | `ae-deliver` | pre-flight, format variants with safe areas, renders, verifying the file |
 | `ae-reference-breakdown` | turn a reference film into a beat map and rebuildable techniques |
 | `video-reference-compare` | frame-by-frame comparison of a render against a reference |
@@ -274,6 +296,7 @@ panel/           CEP extension loaded by After Effects
 mcp/ae-mcp.js    MCP server — zero dependencies, stdio JSON-RPC
 scripts/          check.js (npm test), live tests (npm run test:live), record-welcome.js
 docs/            the website (GitHub Pages) and the welcome animation
+templates/       AI-native templates (JSON recipes built by ae_template)
 bin/install-panel.js  panel installer for macOS and Windows
 install.sh · install.cmd  wrappers for a linked install from source
 skills/          ae-mcp-bridge skill — teaches a model how to use the tools

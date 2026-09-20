@@ -134,6 +134,19 @@ for (const dir of fs.readdirSync(path.join(ROOT, 'skills'))) {
 }
 if (!pkg.files.includes('skills/')) { fail('package.json "files" does not ship skills/'); }
 
+/* 5b. A skill an agent can't see may as well not exist. Claude Code reads
+      .claude/skills, so when that folder is set up here it must hold every
+      skill — `npm run skills` relinks them. */
+{
+  const linked = path.join(ROOT, '.claude', 'skills');
+  if (fs.existsSync(linked)) {
+    const have = new Set(fs.readdirSync(linked));
+    for (const dir of fs.readdirSync(path.join(ROOT, 'skills'))) {
+      if (!have.has(dir)) { fail('.claude/skills is missing "' + dir + '" — run `npm run skills` so agents load it'); }
+    }
+  }
+}
+
 /* 6. The server actually starts and answers an MCP handshake, on this OS. */
 const { spawnSync } = require('child_process');
 const handshake = [
@@ -151,6 +164,74 @@ if (!replies[3] || !replies[3].result || !/read → edit → look/.test(replies[
 /* 7. Installer knows both platforms. */
 const installer = read('bin/install-panel.js');
 if (!/win32/.test(installer) || !/darwin/.test(installer)) { fail('bin/install-panel.js must support macOS and Windows'); }
+
+/* 8. Every template expands cleanly with its defaults, in every format it
+      claims, and only calls tools that exist. No After Effects needed. */
+{
+  const eng = require(path.join(ROOT, 'mcp', 'ae-mcp.js'));
+  const tpls = eng.loadTemplates();
+  const files = fs.readdirSync(path.join(ROOT, 'templates')).filter((f) => /\.json$/.test(f));
+  if (!files.length) { fail('templates/ has no templates'); }
+  for (const f of files) {
+    const t = JSON.parse(read(path.join('templates', f)));
+    if (t.name + '.json' !== f) { fail('templates/' + f + ': "name" must match the file name'); continue; }
+    for (const k of ['title', 'description', 'slots', 'steps']) { if (!t[k]) { fail('templates/' + f + ' has no "' + k + '"'); } }
+    for (const [sk, spec] of Object.entries(t.slots || {})) {
+      if (!['text', 'color', 'number', 'enum', 'bool', 'list'].includes(spec.type)) { fail(f + ': slot ' + sk + ' has unknown type ' + spec.type); }
+      if (spec.default === undefined) { fail(f + ': slot ' + sk + ' needs a default'); }
+      if (!spec.describe) { fail(f + ': slot ' + sk + ' needs "describe" — it is what the agent reads'); }
+    }
+    const { values, problems } = eng.resolveSlots(t, {});
+    problems.forEach((pr) => fail(f + ': default values fail their own rules: ' + pr));
+    for (const format of (t.formats || ['16x9'])) {
+      const [W, H] = eng.FORMATS[format] || [];
+      if (!W) { fail(f + ': unknown format ' + format); continue; }
+      const fps = t.fps || 30;
+      let steps;
+      try {
+        const dur = typeof t.duration === 'string' ? Number(eng.evalExpr(t.duration, Object.assign({}, t.data || {}, values, { fps }))) : t.duration;
+        const ctx = Object.assign({}, t.data || {}, values, { comp: 'Check', W, H, fps, dur, cx: W / 2, cy: H / 2,
+          S: Math.min(W, H) / 1080, portrait: H > W, format, f: (n) => n / fps, toolCount: TOOLS.length, skillCount: 1 });
+        steps = eng.expandSteps(t.steps, ctx, []);
+      } catch (e) { fail(f + ' (' + format + '): ' + e.message); continue; }
+      for (const st of steps) {
+        if (!names.has(st.tool)) { fail(f + ': step calls ' + st.tool + ', which is not a tool'); break; }
+        if (['ae_batch', 'ae_undo', 'ae_new_project', 'ae_open_project', 'ae_render_frame', 'ae_catalog', 'ae_template', 'ae_welcome'].includes(st.tool)) {
+          fail(f + ': ' + st.tool + ' cannot run inside a template build'); break;
+        }
+        const bad = JSON.stringify(st.args).match(/NaN|undefined|\{\{/);
+        if (bad) { fail(f + ' (' + format + '): a step for ' + st.tool + ' has "' + bad[0] + '" in its arguments'); break; }
+      }
+    }
+  }
+  if (!pkg.files.includes('templates/')) { fail('package.json "files" does not ship templates/'); }
+}
+
+/* 9. The proof-reader's checks and the skill that documents them stay in step,
+      and nothing in there can write to the project. */
+{
+  const { CHECKS, analyse } = require(path.join(ROOT, 'mcp', 'proof.js'));
+  const md = read('skills/ae-motion-proof/SKILL.md');
+  const ids = new Set(CHECKS.map((c) => c.id));
+  if (ids.size !== CHECKS.length) { fail('mcp/proof.js: two checks share an id'); }
+  for (const c of CHECKS) {
+    if (!c.what || !c.group) { fail('mcp/proof.js: check ' + c.id + ' needs a group and a description'); }
+    if (!md.includes('`' + c.id + '`')) { fail('skills/ae-motion-proof/SKILL.md does not document the check `' + c.id + '`'); }
+  }
+  for (const m of md.matchAll(/`([a-z][a-z-]{3,})`/g)) {
+    if (/^ae[-_]/.test(m[1]) || m[1].includes('--')) { continue; }
+    if (!ids.has(m[1]) && /^(overlap|collide|clipped|overshoot|safe-area|edge-crowd|tangent|text-|jitter|flicker|wiggle|sub-pixel|off-grid|pop|speed-|linear|read-|stagger|crowded|dead-|unseen|mid-|marker-|strobe|blur-|long-|shear|upscaled|expression-|missing-|never-|switch-|duplicate-|comp-|empty-)/.test(m[1])) {
+      fail('skills/ae-motion-proof/SKILL.md documents `' + m[1] + '`, which is not a check in mcp/proof.js');
+    }
+  }
+  if (writeFns.has('proof')) { fail('__AE_WRITE_FNS lists "proof" — proof-reading must stay read-only'); }
+  if (!/ae_proof/.test(md)) { fail('skills/ae-motion-proof/SKILL.md never mentions ae_proof'); }
+  /* It survives a comp with nothing in it. */
+  try {
+    analyse({ comp: 'Empty', width: 1920, height: 1080, frameRate: 30, duration: 1,
+      workArea: [0, 1], resolution: [1, 1], times: [0, 0.5], layers: [], markers: [], missingFootage: [] });
+  } catch (e) { fail('mcp/proof.js: analyse() throws on an empty comp: ' + e.message); }
+}
 
 if (failures.length) {
   console.error(failures.map((f) => '✗ ' + f).join('\n'));

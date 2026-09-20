@@ -199,6 +199,7 @@ function __aeDispatch(fn, a) {
         case 'layer_detail':    return aeLayerDetail(a);
         case 'selection':       return aeSelection(a);
         case 'find_animation':  return aeFindAnimation(a);
+        case 'proof':           return aeProof(a);
         case 'render_frame':    return aeRenderFrame(a);
         case 'set_property':    return aeSetProperty(a);
         case 'add_keyframes':   return aeAddKeyframes(a);
@@ -714,6 +715,389 @@ function aeFindAnimation(a) {
         out.push({ index: i, layer: L.name, kind: _layerKind(L), animated: found });
     }
     return { comp: comp.name, layers: out };
+}
+
+/* ------------------------------------------------------------------ */
+/* Proof-read: sampled geometry and keyframes for the rule engine      */
+/* ------------------------------------------------------------------ */
+
+/* Position at a time, whether or not its dimensions are separated. */
+function _proofPos(tr, t) {
+    var p = tr.property('ADBE Position');
+    try {
+        if (p.dimensionsSeparated) {
+            return [tr.property('ADBE Position_0').valueAtTime(t, false),
+                    tr.property('ADBE Position_1').valueAtTime(t, false)];
+        }
+    } catch (eD) {}
+    return p.valueAtTime(t, false);
+}
+
+/* A point in a layer's own space, carried up through that layer's transform
+   and every parent's, into comp space. toComp() is expression-only — there is
+   no such thing in ExtendScript — so the chain is walked by hand. A parented
+   layer's position is already relative to its parent's anchor, which is why
+   only the layer itself subtracts one. Z, 3D rotation and camera projection
+   are ignored: 3D layers come back marked approximate. */
+function _proofXY(L, pt, t, self) {
+    var tr, ap, pos, sc, ro, x = pt[0], y = pt[1], a, rx, ry;
+    try { tr = L.property('ADBE Transform Group'); } catch (eG) { return [x, y]; }
+    if (!tr) { return [x, y]; }
+    if (self) {
+        try { ap = tr.property('ADBE Anchor Point').valueAtTime(t, false); x -= ap[0]; y -= ap[1]; } catch (eA) {}
+    }
+    try { sc = tr.property('ADBE Scale').valueAtTime(t, false); x = x * sc[0] / 100; y = y * sc[1] / 100; } catch (eS) {}
+    ro = 0;
+    try { ro = tr.property('ADBE Rotate Z').valueAtTime(t, false); } catch (eR) {}
+    if (ro) {
+        a = ro * Math.PI / 180;
+        rx = x * Math.cos(a) - y * Math.sin(a);
+        ry = x * Math.sin(a) + y * Math.cos(a);
+        x = rx; y = ry;
+    }
+    try { pos = _proofPos(tr, t); x += pos[0]; y += pos[1]; } catch (eP) {}
+    if (L.parent) { return _proofXY(L.parent, [x, y], t, false); }
+    return [x, y];
+}
+
+/* What the layer actually covers, in its own space, as [left, top, w, h].
+   A precomp's sourceRect is the precomp's whole frame — padding and all — so
+   for one level down the real ink is measured instead: the union of what its
+   own layers cover, clipped to the precomp frame. Without this, two text
+   precomps stacked up the screen look like they overlap when they don't. */
+function _proofRect(L, t, depth, budget) {
+    var r, inner, innerT;
+    if (depth < 2 && budget.n < 1500) {
+        try {
+            if (L.source && (L.source instanceof CompItem) && !L.timeRemapEnabled) {
+                innerT = (t - L.startTime) * (100 / (L.stretch || 100));
+                inner = _proofUnion(L.source, innerT, depth + 1, budget);
+                if (inner) { return inner; }
+            }
+        } catch (eC) {}
+    }
+    try { r = L.sourceRectAtTime(t, false); } catch (eR) { return null; }
+    if (!r) { return null; }
+    if (r.width === 0 && r.height === 0) { return null; }
+    return [r.left, r.top, r.width, r.height];
+}
+
+/* Everything visible inside a comp at one time, unioned in that comp's own
+   coordinates and clipped to its frame. */
+function _proofUnion(src, t, depth, budget) {
+    var i, IL, b, x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, any = false;
+    if (t < 0 || t > src.duration) { return null; }
+    for (i = 1; i <= src.numLayers; i++) {
+        budget.n++;
+        if (budget.n > 1500) { break; }
+        IL = src.layer(i);
+        try {
+            if (!IL.enabled || IL.guideLayer) { continue; }
+            if (!IL.activeAtTime(t)) { continue; }
+            if (IL.property('ADBE Transform Group').property('ADBE Opacity').valueAtTime(t, false) <= 2) { continue; }
+        } catch (eE) { continue; }
+        b = _proofLocalBox(IL, t, depth, budget);
+        if (!b) { continue; }
+        any = true;
+        if (b[0] < x0) { x0 = b[0]; }
+        if (b[1] < y0) { y0 = b[1]; }
+        if (b[0] + b[2] > x1) { x1 = b[0] + b[2]; }
+        if (b[1] + b[3] > y1) { y1 = b[1] + b[3]; }
+    }
+    if (!any) { return null; }
+    if (x0 < 0) { x0 = 0; }
+    if (y0 < 0) { y0 = 0; }
+    if (x1 > src.width) { x1 = src.width; }
+    if (y1 > src.height) { y1 = src.height; }
+    if (x1 <= x0 || y1 <= y0) { return null; }
+    return [x0, y0, x1 - x0, y1 - y0];
+}
+
+/* A track-matted layer only shows where its matte has pixels, so the matte's
+   box bounds it. Inverted mattes show everywhere the matte is not, so those
+   are left alone. Returns false when there is no matte to apply, null when
+   the matte is empty (the layer then shows nothing), otherwise the box. */
+function _proofMatteBox(L, t, depth, budget) {
+    var m = null, c;
+    try {
+        if (L.trackMatteType === TrackMatteType.NO_TRACK_MATTE) { return false; }
+        if (L.trackMatteType === TrackMatteType.ALPHA_INVERTED ||
+            L.trackMatteType === TrackMatteType.LUMA_INVERTED) { return false; }
+    } catch (eN) { return false; }
+    try { m = L.trackMatteLayer; } catch (eM) {}
+    if (!m) {
+        try { c = L.containingComp; if (L.index > 1) { m = c.layer(L.index - 1); } } catch (eC) {}
+    }
+    if (!m) { return false; }
+    return _proofLocalBox(m, t, depth + 1, budget);
+}
+
+/* A layer's box in the coordinates of the comp it lives in. */
+function _proofLocalBox(L, t, depth, budget) {
+    var r = _proofRect(L, t, depth, budget), cs, i, p, xs = [], ys = [], x0, y0, x1, y1, mb;
+    if (!r) { return null; }
+    cs = [[r[0], r[1]], [r[0] + r[2], r[1]], [r[0] + r[2], r[1] + r[3]], [r[0], r[1] + r[3]]];
+    for (i = 0; i < 4; i++) {
+        try { p = _proofXY(L, cs[i], t, true); } catch (eT) { return null; }
+        xs.push(p[0]); ys.push(p[1]);
+    }
+    x0 = Math.min.apply(Math, xs); x1 = Math.max.apply(Math, xs);
+    y0 = Math.min.apply(Math, ys); y1 = Math.max.apply(Math, ys);
+    if (depth < 3) {
+        mb = _proofMatteBox(L, t, depth, budget);
+        if (mb === null) { return null; }
+        if (mb) {
+            if (mb[0] > x0) { x0 = mb[0]; }
+            if (mb[1] > y0) { y0 = mb[1]; }
+            if (mb[0] + mb[2] < x1) { x1 = mb[0] + mb[2]; }
+            if (mb[1] + mb[3] < y1) { y1 = mb[1] + mb[3]; }
+            if (x1 <= x0 || y1 <= y0) { return null; }
+        }
+    }
+    return [x0, y0, x1 - x0, y1 - y0];
+}
+
+/* The layer's box in comp space, rounded for the wire. */
+function _proofBox(L, t, budget) {
+    var b = _proofLocalBox(L, t, 0, budget || { n: 0 });
+    if (!b) { return null; }
+    return [_round(b[0]), _round(b[1]), _round(b[2]), _round(b[3])];
+}
+
+/* A 3D layer, or anything hanging off one, is placed by the camera, which the
+   flat box maths above cannot follow. Those boxes are marked approximate. */
+function _proofApprox(L) {
+    var p = L, n = 0;
+    while (p && n < 12) {
+        try { if (p.threeDLayer) { return true; } } catch (eT) {}
+        p = p.parent; n++;
+    }
+    return false;
+}
+
+function _proofText(L) {
+    var d, o = {};
+    try { d = L.property('ADBE Text Properties').property('ADBE Text Document').value; }
+    catch (eD) { return null; }
+    if (!d) { return null; }
+    try { o.text = String(d.text).replace(/[\r\n]+/g, ' / '); } catch (e1) {}
+    try { o.fontSize = _round(d.fontSize); } catch (e2) {}
+    try { o.font = d.font; } catch (e3) {}
+    try { o.tracking = _round(d.tracking); } catch (e4) {}
+    try {
+        if (d.boxText) { o.boxText = true; o.boxSize = [_round(d.boxTextSize[0]), _round(d.boxTextSize[1])]; }
+    } catch (e5) {}
+    return o;
+}
+
+/* Keyframes with their values, interpolation and speed, plus every
+   expression and its error. Markers are keyframes too, and their values are
+   MarkerValue objects, so they are collected separately. */
+function _proofKeys(root, trail, out, depth, budget) {
+    var i, p, name, path, k, keys, ease, entry, kk;
+    if (depth > 6 || out.length >= 90 || budget.n > 4000) { return; }
+    for (i = 1; i <= root.numProperties; i++) {
+        budget.n++;
+        if (budget.n > 4000) { return; }
+        p = root.property(i);
+        if (p.matchName === 'ADBE Marker') { continue; }
+        name = p.name;
+        path = (name && name.length) ? trail.concat([name]) : trail;
+        if (p.propertyType === PropertyType.PROPERTY) {
+            entry = null;
+            if (p.numKeys > 0) {
+                keys = [];
+                for (k = 1; k <= p.numKeys && k <= 60; k++) {
+                    kk = { t: _round(p.keyTime(k)) };
+                    try { kk.v = _plainValue(p.keyValue(k)); } catch (eV) { kk.v = null; }
+                    try {
+                        kk.i = _interpName(p.keyInInterpolationType(k));
+                        kk.o = _interpName(p.keyOutInterpolationType(k));
+                    } catch (eI) {}
+                    try {
+                        ease = p.keyInTemporalEase(k);
+                        if (ease && ease.length) { kk.si = _round(ease[0].speed); kk.fi = _round(ease[0].influence); }
+                        ease = p.keyOutTemporalEase(k);
+                        if (ease && ease.length) { kk.so = _round(ease[0].speed); kk.fo = _round(ease[0].influence); }
+                    } catch (eE) {}
+                    keys.push(kk);
+                }
+                entry = { path: path, keys: keys };
+            }
+            try {
+                if (p.canSetExpression && p.expression && p.expression.length) {
+                    if (!entry) { entry = { path: path }; }
+                    entry.expression = p.expression.replace(/[\r\n]+/g, ' ');
+                    if (!p.expressionEnabled) { entry.expressionEnabled = false; }
+                    if (p.expressionError && p.expressionError.length) { entry.expressionError = p.expressionError; }
+                }
+            } catch (eX) {}
+            if (entry) { out.push(entry); }
+        } else if (p.numProperties > 0) {
+            _proofKeys(p, path, out, depth + 1, budget);
+        }
+    }
+}
+
+function _proofMarkers(prop) {
+    var out = [], k;
+    try {
+        if (!prop) { return out; }
+        for (k = 1; k <= prop.numKeys && k <= 60; k++) {
+            out.push({ t: _round(prop.keyTime(k)), comment: String(prop.keyValue(k).comment) });
+        }
+    } catch (eM) {}
+    return out;
+}
+
+/* Sample a comp for the proof-reader: where everything is over time, plus
+   the static facts the rules need. Read-only — the playhead never moves and
+   nothing in the project changes. */
+function aeProof(a) {
+    var comp = _findComp(a.comp), fps = comp.frameRate, i, j, k, L, t, s, v,
+        start, dur, total, step, times = [], layers = [], entry, samples,
+        hasCamera = false, budget, box, src, fx, effects, missing = [], it, tr;
+
+    start = (a.start !== undefined) ? _time(comp, a.start) : comp.workAreaStart;
+    dur = (a.duration !== undefined) ? _time(comp, a.duration) : comp.workAreaDuration;
+    if (!(dur > 0)) { dur = comp.duration - start; }
+    total = Math.max(1, Math.round(dur * fps));
+    step = Math.max(1, Math.ceil(total / Math.max(2, Math.min(a.samples || 60, 240))));
+    /* Frames, not seconds: the last frame of a range is one frame before its
+       end, and at the end itself every layer has already gone out. */
+    for (k = 0; k < total; k += step) { times.push(_round(start + k / fps)); }
+    if (times[times.length - 1] < _round(start + (total - 1) / fps) - 0.0001) {
+        times.push(_round(start + (total - 1) / fps));
+    }
+
+    for (i = 1; i <= comp.numLayers; i++) {
+        if (comp.layer(i) instanceof CameraLayer) { hasCamera = true; }
+    }
+
+    for (i = 1; i <= comp.numLayers; i++) {
+        L = comp.layer(i);
+        entry = {
+            index: i, name: L.name, kind: _layerKind(L),
+            enabled: L.enabled, solo: L.solo, shy: L.shy, locked: L.locked,
+            inPoint: _round(L.inPoint), outPoint: _round(L.outPoint),
+            startTime: _round(L.startTime),
+            parent: L.parent ? L.parent.index : null
+        };
+        try { entry.threeD = L.threeDLayer; } catch (e1) {}
+        if (_proofApprox(L)) { entry.approx = true; }
+        try { entry.adjustment = L.adjustmentLayer; } catch (e2) {}
+        try { entry.guide = L.guideLayer; } catch (e3) {}
+        try { entry.motionBlur = L.motionBlur; } catch (e4) {}
+        try { entry.collapse = L.collapseTransformation; } catch (e5) {}
+        try { entry.blend = _blendName(L.blendingMode); } catch (e6) {}
+        try { entry.matte = (L.trackMatteType !== TrackMatteType.NO_TRACK_MATTE); } catch (e7) {}
+        try { entry.stretch = _round(L.stretch); } catch (e8) {}
+        try { entry.effectsActive = L.effectsActive; } catch (e9) {}
+        /* Masks clip a layer and text animators can hide characters, neither
+           of which shows up in the layer's extents. Count them so the rules
+           know the box may be bigger than what is on screen. */
+        try {
+            fx = L.property('ADBE Mask Parade');
+            entry.masks = 0;
+            for (j = 1; j <= fx.numProperties; j++) {
+                if (fx.property(j).maskMode !== MaskMode.NONE) { entry.masks++; }
+            }
+        } catch (e10) {}
+        try {
+            fx = L.property('ADBE Text Properties').property('ADBE Text Animators');
+            if (fx && fx.numProperties) { entry.animators = fx.numProperties; }
+        } catch (e11) {}
+
+        effects = [];
+        try {
+            fx = L.property('ADBE Effect Parade');
+            if (fx) {
+                for (j = 1; j <= fx.numProperties; j++) {
+                    effects.push({ name: fx.property(j).name, on: fx.property(j).enabled });
+                }
+            }
+        } catch (eF) {}
+        if (effects.length) { entry.effects = effects; }
+
+        try {
+            if (L.source) {
+                src = { name: L.source.name };
+                if (L.source instanceof CompItem) {
+                    src.comp = true;
+                    src.fps = _round(L.source.frameRate);
+                }
+                try { if (L.source.width) { src.width = L.source.width; src.height = L.source.height; } } catch (eS0) {}
+                try { if (L.source.footageMissing) { src.missing = true; } } catch (eS1) {}
+                try { if (!(L.source instanceof CompItem) && L.source.duration === 0) { src.still = true; } } catch (eS4) {}
+                try { if (L.source.mainSource.hasAlpha) { src.alpha = true; } } catch (eS5) {}
+                try { if (L.source.mainSource instanceof SolidSource) { src.solid = true; } } catch (eS2) {}
+                try { if (L.source.mainSource instanceof FileSource) { src.file = true; } } catch (eS3) {}
+                entry.source = src;
+            }
+        } catch (eS) {}
+
+        if (entry.kind === 'text') { entry.text = _proofText(L); }
+
+        entry.markers = _proofMarkers(L.property('ADBE Marker'));
+        if (!entry.markers.length) { delete entry.markers; }
+
+        budget = { n: 0 };
+        entry.anim = [];
+        _proofKeys(L, [], entry.anim, 0, budget);
+
+        samples = [];
+        for (j = 0; j < times.length; j++) {
+            t = times[j];
+            s = null;
+            try {
+                if (L.activeAtTime(t)) {
+                    s = {};
+                    box = _proofBox(L, t);
+                    if (box) { s.b = box; }
+                    tr = null;
+                    try { tr = L.property('ADBE Transform Group'); } catch (eTr) {}
+                    if (tr) {
+                        try { s.o = _round(tr.property('ADBE Opacity').valueAtTime(t, false)); } catch (eO) {}
+                        try {
+                            v = tr.property('ADBE Position').valueAtTime(t, false);
+                            s.p = [_round(v[0]), _round(v[1])];
+                        } catch (eP) {}
+                        try {
+                            v = tr.property('ADBE Scale').valueAtTime(t, false);
+                            s.s = [_round(v[0]), _round(v[1])];
+                        } catch (eSc) {}
+                        try { s.r = _round(tr.property('ADBE Rotate Z').valueAtTime(t, false)); } catch (eRo) {}
+                    }
+                }
+            } catch (eA) {}
+            samples.push(s);
+        }
+        entry.samples = samples;
+        layers.push(entry);
+    }
+
+    for (k = 1; k <= app.project.numItems; k++) {
+        it = app.project.item(k);
+        try { if (it instanceof FootageItem && it.footageMissing) { missing.push(it.name); } } catch (eI) {}
+    }
+
+    return {
+        comp: comp.name,
+        width: comp.width, height: comp.height,
+        frameRate: _round(fps), duration: _round(comp.duration),
+        workArea: [_round(comp.workAreaStart), _round(comp.workAreaDuration)],
+        range: [_round(start), _round(dur)],
+        motionBlur: comp.motionBlur,
+        shutterAngle: _round(comp.shutterAngle),
+        resolution: [comp.resolutionFactor[0], comp.resolutionFactor[1]],
+        renderer: comp.renderer,
+        bgColor: _plainValue(comp.bgColor),
+        hasCamera: hasCamera,
+        markers: _proofMarkers(comp.markerProperty),
+        missingFootage: missing,
+        times: times,
+        layers: layers
+    };
 }
 
 function aeCompTree(a) {
@@ -1306,9 +1690,14 @@ function _layerAttr(L, k) {
 function aeSetLayerProps(a) {
     var comp = _findComp(a.comp), E = _layerEnums();
     var res = _eachLayer(comp, a, function (L) {
-        var o = a.props || {}, before = {}, after = {}, k, v, tm;
-        for (k in o) {
-            if (!o.hasOwnProperty(k)) { continue; }
+        var o = a.props || {}, before = {}, after = {}, k, v, tm, keys = [], ki;
+        /* Parent first: After Effects keeps a child's look in the world when
+           it is parented, so a layer made 3D before being parented to a
+           rotated 3D parent gets a counter-rotation and leaves its plane. */
+        if (o.hasOwnProperty('parent')) { keys.push('parent'); }
+        for (k in o) { if (o.hasOwnProperty(k) && k !== 'parent') { keys.push(k); } }
+        for (ki = 0; ki < keys.length; ki++) {
+            k = keys[ki];
             before[k] = _layerAttr(L, k);
             v = o[k];
             if (k === 'parent') {

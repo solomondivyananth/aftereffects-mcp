@@ -1,0 +1,78 @@
+{
+  "name": "word-reveal",
+  "title": "Word Reveal",
+  "description": "A calm, premium title: the headline arrives word by word, each settling from blur to sharp, over a pale mesh gradient of slowly drifting colour. A subline fades up after, and both leave gently. Suits product and AI launches, intros and chapter cards.",
+  "formats": ["16x9", "9x16", "1x1", "4x5"],
+  "duration": 6,
+  "fps": 30,
+  "slots": {
+    "headline": { "type": "text", "default": "Ideas arrive one word at a time", "maxChars": 64, "required": true, "describe": "The main line. Around 3-8 words reads best." },
+    "sub": { "type": "text", "default": "Calm, precise, and a little bit alive.", "maxChars": 90, "describe": "Optional second line. Empty hides it." },
+    "accent": { "type": "color", "default": "#7a5cff", "describe": "First gradient colour." },
+    "accent2": { "type": "color", "default": "#ff7ab8", "describe": "Second gradient colour." },
+    "theme": { "type": "enum", "values": ["light", "dark"], "default": "light", "describe": "light: pale field, dark text. dark: deep field, white text." }
+  },
+  "steps": [
+    { "let": {
+      "base": "{{theme == 'light' ? '#f3f2f8' : '#0f0e16'}}",
+      "ink": "{{theme == 'light' ? '#16151c' : '#ffffff'}}",
+      "muted": "{{theme == 'light' ? '#5c5870' : '#b9b5cc'}}",
+      "blobOpacity": "{{theme == 'light' ? 30 : 45}}",
+      "hsize": "{{Math.min(92 * S, W * 0.86 / Math.max(8, headline.length * 0.52))}}"
+    } },
+
+    { "tool": "ae_create_comp", "args": { "name": "{{comp}}", "width": "{{W}}", "height": "{{H}}", "frameRate": "{{fps}}", "duration": "{{dur}}", "bgColor": "{{base}}" } },
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "Base", "color": "{{base}}" } } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "null", "options": { "name": "Controls" } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects"], "add": ["ADBE Color Control", "ADBE Color Control"] } },
+    { "tool": "ae_property_meta", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Color Control"], "name": "Accent" } },
+    { "tool": "ae_property_meta", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Color Control 2"], "name": "Accent 2" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent", "Color"], "value": "{{accent}}" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent 2", "Color"], "value": "{{accent2}}" } },
+
+    { "repeat": { "over": "[['Blob A', 'Accent', -0.28, -0.22, 0.75], ['Blob B', 'Accent 2', 0.3, 0.2, 0.7], ['Blob C', 'Accent', 0.12, -0.3, 0.5]]", "as": "b", "index": "i" }, "steps": [
+      { "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "{{b[0]}}", "shape": "ellipse", "size": ["{{W * b[4]}}", "{{W * b[4]}}"], "fill": "{{b[1] == 'Accent' ? accent : accent2}}",
+        "transform": { "position": ["{{W * b[2]}}", "{{H * b[3]}}"] } } },
+      { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{b[0]}}", "path": ["Transform", "Opacity"], "value": "{{blobOpacity}}" } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{b[0]}}", "path": ["Contents", "{{b[0]}}", "Contents", "Fill 1", "Color"], "expression": "{{'thisComp.layer(\"Controls\").effect(\"' + b[1] + '\")(\"Color\")'}}" } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{b[0]}}", "path": ["Contents", "{{b[0]}}", "Transform", "Position"], "expression": "{{'seedRandom(' + (i + 3) + ', true); wiggle(0.15, ' + Math.round(160 * S) + ')'}}" } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{b[0]}}", "path": ["Contents", "{{b[0]}}", "Transform", "Scale"], "expression": "{{'seedRandom(' + (i + 7) + ', true); var s = 100 + wiggle(0.1, 12)[0] - value[0]; [s, s]'}}" } }
+    ] },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "adjustment", "options": { "name": "Soften" } } },
+    { "tool": "ae_apply_effect", "args": { "comp": "{{comp}}", "layer": "Soften", "effect": "ADBE Gaussian Blur 2", "params": { "Blurriness": "{{Math.round(300 * S)}}", "Repeat Edge Pixels": 1 } } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Headline", "text": "{{headline}}",
+      "style": { "fontSize": "{{hsize}}", "fillColor": "{{ink}}", "justification": "center", "tracking": -15 },
+      "position": ["{{cx}}", "{{sub.length > 0 ? cy - 10 * S : cy + hsize * 0.3}}"] } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Headline", "path": ["Text", "Animators"], "add": "ADBE Text Animator", "name": "In",
+      "animate": ["ADBE Text Opacity", "ADBE Text Blur", "ADBE Text Position 3D"] } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Headline", "path": ["Text", "Animators", "In", "Selectors"], "add": "ADBE Text Selector" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Headline", "path": ["Text", "Animators", "In", "Properties", "Opacity"], "value": 0 } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Headline", "path": ["Text", "Animators", "In", "Properties", "Blur"], "value": [16, 16] } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Headline", "path": ["Text", "Animators", "In", "Properties", "Position"], "value": [0, "{{28 * S}}", 0] } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Headline", "path": ["Text", "Animators", "In", "Selectors", "Range Selector 1", "Advanced", "Based On"], "value": 3 } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Headline", "path": ["Text", "Animators", "In", "Selectors", "Range Selector 1", "Advanced", "Shape"], "value": 2 } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Headline", "path": ["Text", "Animators", "In", "Selectors", "Range Selector 1", "Offset"], "keys": [
+      { "time": "6f", "value": -100 }, { "time": "46f", "value": 100, "ease": { "in": 75 } } ] } },
+
+    { "when": "sub.length > 0", "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Sub", "text": "{{sub}}",
+      "style": { "fontSize": "{{34 * S}}", "fillColor": "{{muted}}", "justification": "center" },
+      "position": ["{{cx}}", "{{cy + 72 * S}}"] } } },
+    { "when": "sub.length > 0", "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Sub", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "44f", "value": 0 }, { "time": "62f", "value": 100, "ease": { "in": 80 } } ] } },
+    { "when": "sub.length > 0", "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Sub", "path": ["Transform", "Position"], "keys": [
+      { "time": "44f", "value": ["{{cx}}", "{{cy + 88 * S}}"], "ease": { "out": 20 } }, { "time": "62f", "value": ["{{cx}}", "{{cy + 72 * S}}"], "ease": { "in": 85 } } ] } },
+
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layers": "{{sub.length > 0 ? ['Headline', 'Sub'] : ['Headline']}}", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "{{dur - 0.7}}", "value": 100 }, { "time": "{{dur - 0.1}}", "value": 0, "ease": { "in": 60 } } ] } },
+
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Headline", "path": ["Text", "Source Text"], "name": "Headline" } },
+    { "when": "sub.length > 0", "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Sub", "path": ["Text", "Source Text"], "name": "Subline" } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "properties": [
+      { "layer": "Controls", "path": ["Effects", "Accent", "Color"], "name": "Colour 1" },
+      { "layer": "Controls", "path": ["Effects", "Accent 2", "Color"], "name": "Colour 2" } ] } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "set_name", "name": "{{comp}}" } }
+  ]
+}

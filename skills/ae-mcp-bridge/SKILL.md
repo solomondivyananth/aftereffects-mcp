@@ -18,7 +18,7 @@ ae_* tool ──stdio──► mcp/ae-mcp.js ──HTTP 127.0.0.1:7788──► 
 
 ## Work like an animator
 
-Never edit blind. Every job is **read → edit → look**.
+Never edit blind. Every job is **read → edit → look → proof**.
 
 1. **Orient** — `ae_project_info`. If the user says "this", "these keys",
    "here", call `ae_selection`: it has the selected layers, properties,
@@ -29,7 +29,12 @@ Never edit blind. Every job is **read → edit → look**.
    `layers` — one call, one undo step.
 4. **Look** — `ae_render_frame` at what you changed; `ae_review_motion` after
    anything that moves. Report what you *saw*, not what you intended.
-5. **Show** — `ae_goto` parks the user's viewer on the moment you mean.
+5. **Proof** — `ae_proof` before you call a comp done. It measures what the
+   eye stops seeing: elements overlapping or clipped, jitter, one-frame pops,
+   keys off the frame grid, type too small to read, a solo switch left on.
+   Render the times it hands back before believing a finding, and before
+   fixing it (`ae-motion-proof`).
+6. **Show** — `ae_goto` parks the user's viewer on the moment you mean.
 
 Made a mistake? `ae_undo`. It walks Edit ▸ Undo, so it also undoes the user's
 own hand edits if they came after yours — check `ae_selection` first if they
@@ -80,6 +85,7 @@ name? `ae_catalog` looks it up.
 | layer switches, blend mode, track matte, parent, timing | `ae_set_layer_props` — returns before/after |
 | duplicate, split, sequence, freeze, align, fit, centre anchor | `ae_layer_action` |
 | many edits as one undo step | `ae_batch` — atomic: a failure rolls the rest back |
+| check a comp for overlaps, jitter, pops, unreadable text | `ae_proof` — read-only, 37 checks, findings with times to render |
 | a menu command no tool covers | `ae_menu_command` ("Convert to Editable Text", "Drop Shadow", "Convert Audio to Keyframes") |
 | anything else | `ae_run_jsx` — ES3 ExtendScript: `var` only, no `let`/`const`/arrows/template strings |
 

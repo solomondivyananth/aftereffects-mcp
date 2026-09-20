@@ -39,7 +39,7 @@
     { t: 6.88, w: 'UNDO', s: 1.15, bg: 'light' },
     { t: 7.16, w: 'PER', s: 1.0 },
     { t: 7.44, w: 'EDIT.', s: 1.1, sub: 'Edit ▸ Undo “MCP: …”', bar: true },
-    { t: 7.95, w: '46', s: 2.4, flash: true, bg: 'accent' },
+    { t: 7.95, w: '49', s: 2.4, flash: true, bg: 'accent' },
     { t: 8.45, w: 'TOOLS', s: 1.05 },
     { t: 8.80, w: '+ SKILLS', s: 0.9, bg: 'light' },
     { t: 9.25, w: 'IN YOUR', s: 0.85 },
@@ -50,7 +50,7 @@
   var MARKERS = [
     { t: 0, label: 'Intro' }, { t: 1.6, label: 'Read' }, { t: 2.65, label: 'See' },
     { t: 3.75, label: 'Edit' }, { t: 4.6, label: 'Tools' }, { t: 6.6, label: 'Undo' },
-    { t: 7.95, label: '46' }, { t: 10.15, label: 'Lockup' }
+    { t: 7.95, label: '49' }, { t: 10.15, label: 'Lockup' }
   ];
 
   var CSS =
@@ -117,7 +117,7 @@
     var lock = el('div', 'stomp-lock', stage);
     var logo = el('div', 'stomp-logo', lock);
     logo.innerHTML = 'AE <span>MCP</span> BRIDGE';
-    el('div', 'stomp-tag', lock, '46 tools · skills · live in your timeline');
+    el('div', 'stomp-tag', lock, '49 tools · 17 skills · live in your timeline');
     var credit = el('div', 'stomp-credit', lock, 'by Solomon Divyananth');
     var tc = opts.timecode === false ? null : el('div', 'stomp-tc', container);
 

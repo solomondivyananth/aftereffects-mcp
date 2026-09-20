@@ -40,7 +40,16 @@ ae_set_layer_props {"layer": "Camera", "props": {"parent": "Cam Dolly"}}
 ae_set_layer_props {"layer": "Cam Dolly", "props": {"parent": "Cam Orbit"}}
 ```
 
-Put Cam Orbit at the subject's position. Then:
+Put Cam Orbit at the subject's position.
+
+**Parenting order matters.** After Effects keeps a child's look in the world
+when it's parented. A layer that is already 3D, parented to a *rotated* 3D
+parent, gets a counter-rotation and leaves the parent's plane: layers
+"slice" into each other. Parent while the child is 2D, then set
+`threeDLayer: true`. (`ae_set_layer_props` applies `parent` before
+everything else in the same call.)
+
+Then:
 
 | Move | Animate |
 |---|---|

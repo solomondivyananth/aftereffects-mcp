@@ -29,6 +29,10 @@ agent owns; add a line to the table instead of taking one.
 | ae-audio-sync (audio to keyframes, beat markers, cutting to music) | Claude (taken over from Codex) | done, beat finder frame-exact on a known click track |
 | ae-templates (Essential Graphics, MOGRT, controls for editors) | Claude (taken over from Codex) | done, new ae_essential_graphics tool, .mogrt export verified |
 | ae-data-driven (charts and versions from CSV/JSON) | Claude (taken over from Codex) | done, CSV/JSON expressions and bar chart rendered in AE |
+| ae-ai-templates + templates/ (AI-native templates, ae_template, ae_welcome) | Claude (mission taken over from Codex) | done, 7 templates built and checked in AE, validated by npm test |
+| ae-motion-proof + ae_proof (proof-read a comp: overlaps, jitter, pops, unreadable text, switches) | Claude | done, 37 checks in mcp/proof.js, tuned against 8 real comps |
+
+| ae-reusable-library panel + reference scene/transition pack | Codex | in progress; panel/index.html, panel/js/library.js, panel/js/library-core.js, minimal main.js hook |
 
 Claim an open row by writing your name in it before you start.
 
@@ -55,6 +59,27 @@ Claim an open row by writing your name in it before you start.
 - Things After Effects can't do from a script (tracking, the 3D camera
   tracker, Roto Brush, Content-Aware Fill, puppet pins) are stated plainly,
   with the manual step for the user.
+
+## Proof-reading
+
+`ae_proof` samples a comp through the read-only bridge fn `proof` and runs
+the rules in `mcp/proof.js`. Every check lives in the `CHECKS` table there,
+and `skills/ae-motion-proof/SKILL.md` documents the same ids — `npm test`
+fails if the two drift apart. When adding a check:
+
+- Tune it against real comps before shipping it. A proof-reader that cries
+  wolf gets ignored, so prefer a missed finding to a false one.
+- A box can be bigger than what shows (precomps, images with transparent
+  margins, text animators, masks). Set `doubt` on the layer and let the
+  finding carry its own caveat at a lower severity, rather than asserting.
+- Keep it read-only. `proof` must never appear in `__AE_WRITE_FNS`.
+
+## Templates
+
+`templates/<name>.json` are AI-native templates built by `ae_template`. Read
+`skills/ae-ai-templates/SKILL.md` before writing one; `npm test` expands every
+template with its defaults in every format. Build new ones live and look at
+the contact sheet in each format before calling them done.
 
 ## Code rules
 

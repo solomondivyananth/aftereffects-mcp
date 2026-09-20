@@ -1,0 +1,86 @@
+{
+  "name": "logo-sting",
+  "title": "Logo Sting",
+  "description": "A short brand sting: a glowing ring draws itself on with a second ring trailing, the wordmark settles in from blur and scale, a small flare sweeps across it, and a tagline fades up underneath. Ends on a clean hold for the logo.",
+  "formats": ["16x9", "9x16", "1x1", "4x5"],
+  "duration": 5,
+  "fps": 30,
+  "slots": {
+    "wordmark": { "type": "text", "default": "NORTHWIND", "maxChars": 20, "required": true, "describe": "The brand name as it should read." },
+    "tagline": { "type": "text", "default": "Made to move.", "maxChars": 48, "describe": "Optional line under the wordmark. Empty hides it." },
+    "accent": { "type": "color", "default": "#9f8cff", "describe": "Main ring colour." },
+    "accent2": { "type": "color", "default": "#ff7ab8", "describe": "Trailing ring colour." },
+    "theme": { "type": "enum", "values": ["dark", "light"], "default": "dark", "describe": "Background." },
+    "font": { "type": "text", "default": "", "maxChars": 60, "describe": "Optional PostScript font for the wordmark. Empty keeps the default." }
+  },
+  "steps": [
+    { "let": {
+      "bg": "{{theme == 'dark' ? '#0d0c12' : '#f4f3f8'}}",
+      "ink": "{{theme == 'dark' ? '#ffffff' : '#16151c'}}",
+      "muted": "{{theme == 'dark' ? '#b3afc6' : '#5c5870'}}",
+      "R": "{{Math.min(W, H) * 0.36}}"
+    } },
+    { "let": { "size": "{{Math.min(112 * S, R * 1.45 / (0.66 * Math.max(4, wordmark.length)))}}" } },
+    { "let": { "textY": "{{cy + size * 0.34}}", "textW": "{{size * 0.66 * wordmark.length}}" } },
+
+    { "tool": "ae_create_comp", "args": { "name": "{{comp}}", "width": "{{W}}", "height": "{{H}}", "frameRate": "{{fps}}", "duration": "{{dur}}", "bgColor": "{{bg}}" } },
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "Background", "color": "{{bg}}" } } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "null", "options": { "name": "Controls" } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects"], "add": ["ADBE Color Control", "ADBE Color Control"] } },
+    { "tool": "ae_property_meta", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Color Control"], "name": "Accent" } },
+    { "tool": "ae_property_meta", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Color Control 2"], "name": "Accent 2" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent", "Color"], "value": "{{accent}}" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent 2", "Color"], "value": "{{accent2}}" } },
+
+    { "repeat": { "over": "[['Ring 2', 'Accent 2', 1.08, 10, 60, 3], ['Ring', 'Accent', 1, 6, 100, 6]]", "as": "r", "index": "i" }, "steps": [
+      { "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "{{r[0]}}", "shape": "ellipse", "size": ["{{R * 2 * r[2]}}", "{{R * 2 * r[2]}}"],
+        "stroke": { "color": "{{r[1] == 'Accent' ? accent : accent2}}", "width": "{{r[5] * S}}", "lineCap": "round" }, "trim": { "start": 0, "end": 0 } } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{r[0]}}", "path": ["Contents", "{{r[0]}}", "Contents", "Stroke 1", "Color"], "expression": "{{'thisComp.layer(\"Controls\").effect(\"' + r[1] + '\")(\"Color\")'}}" } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{r[0]}}", "path": ["Contents", "{{r[0]}}", "Contents", "Trim Paths 1", "End"], "keys": [
+        { "time": "{{r[3] + 'f'}}", "value": 0, "ease": { "out": 25 } }, { "time": "{{(r[3] + 26) + 'f'}}", "value": 100, "ease": { "in": 88 } } ] } },
+      { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{r[0]}}", "path": ["Contents", "{{r[0]}}", "Contents", "Trim Paths 1", "Offset"], "expression": "{{'value - 90 + time * ' + (i == 0 ? -24 : 36)}}" } },
+      { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{r[0]}}", "path": ["Transform", "Opacity"], "value": "{{r[4]}}" } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{r[0]}}", "path": ["Transform", "Scale"], "keys": [
+        { "time": "{{r[3] + 'f'}}", "value": [88, 88], "ease": { "out": 20 } }, { "time": "{{(r[3] + 30) + 'f'}}", "value": [100, 100], "ease": { "in": 90 } } ] } },
+      { "tool": "ae_apply_effect", "args": { "comp": "{{comp}}", "layer": "{{r[0]}}", "effect": "ADBE Glo2", "params": { "Glow Threshold": 20, "Glow Radius": "{{Math.round(34 * S)}}", "Glow Intensity": 1.4 } } }
+    ] },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Wordmark", "text": "{{wordmark}}",
+      "style": { "fontSize": "{{size}}", "fillColor": "{{ink}}", "justification": "center", "tracking": 60 },
+      "position": ["{{cx}}", "{{tagline.length > 0 ? textY - 16 * S : textY}}"] } } },
+    { "when": "font.length > 0", "tool": "ae_text", "args": { "comp": "{{comp}}", "layer": "Wordmark", "style": { "font": "{{font}}" } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Wordmark", "path": ["Text", "Animators"], "add": "ADBE Text Animator", "name": "In",
+      "animate": ["ADBE Text Opacity", "ADBE Text Blur"] } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Wordmark", "path": ["Text", "Animators", "In", "Selectors"], "add": "ADBE Text Selector" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Wordmark", "path": ["Text", "Animators", "In", "Properties", "Opacity"], "value": 0 } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Wordmark", "path": ["Text", "Animators", "In", "Properties", "Blur"], "value": [24, 24] } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Wordmark", "path": ["Text", "Animators", "In", "Selectors", "Range Selector 1", "Advanced", "Shape"], "value": 2 } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Wordmark", "path": ["Text", "Animators", "In", "Selectors", "Range Selector 1", "Offset"], "keys": [
+      { "time": "16f", "value": -100 }, { "time": "40f", "value": 100, "ease": { "in": 80 } } ] } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Wordmark", "path": ["Transform", "Scale"], "keys": [
+      { "time": "16f", "value": [112, 112], "ease": { "out": 20 } }, { "time": "44f", "value": [100, 100], "ease": { "in": 90 } } ] } },
+
+    { "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "Flare", "shape": "ellipse", "size": ["{{16 * S}}", "{{16 * S}}"], "fill": "#ffffff" } },
+    { "tool": "ae_apply_effect", "args": { "comp": "{{comp}}", "layer": "Flare", "effect": "ADBE Glo2", "params": { "Glow Threshold": 10, "Glow Radius": "{{Math.round(60 * S)}}", "Glow Intensity": 2.5 } } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Flare", "path": ["Transform", "Position"], "keys": [
+      { "time": "34f", "value": ["{{cx - textW * 0.55}}", "{{textY - size * 0.62}}"], "ease": { "out": 30 } },
+      { "time": "58f", "value": ["{{cx + textW * 0.55}}", "{{textY - size * 0.62}}"], "ease": { "in": 70 } } ] } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Flare", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "34f", "value": 0 }, { "time": "40f", "value": 100 }, { "time": "52f", "value": 100 }, { "time": "58f", "value": 0 } ] } },
+    { "tool": "ae_set_layer_props", "args": { "comp": "{{comp}}", "layer": "Flare", "props": { "blendingMode": "add" } } },
+
+    { "when": "tagline.length > 0", "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Tagline", "text": "{{tagline}}",
+      "style": { "fontSize": "{{32 * S}}", "fillColor": "{{muted}}", "justification": "center", "tracking": 40 },
+      "position": ["{{cx}}", "{{textY + 58 * S}}"] } } },
+    { "when": "tagline.length > 0", "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Tagline", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "46f", "value": 0 }, { "time": "64f", "value": 100, "ease": { "in": 80 } } ] } },
+
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Wordmark", "path": ["Text", "Source Text"], "name": "Wordmark" } },
+    { "when": "tagline.length > 0", "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Tagline", "path": ["Text", "Source Text"], "name": "Tagline" } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "properties": [
+      { "layer": "Controls", "path": ["Effects", "Accent", "Color"], "name": "Ring colour" },
+      { "layer": "Controls", "path": ["Effects", "Accent 2", "Color"], "name": "Trailing ring colour" } ] } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "set_name", "name": "{{comp}}" } }
+  ]
+}

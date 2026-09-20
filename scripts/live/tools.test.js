@@ -204,6 +204,25 @@ async function t(label, name, args, check) {
   await t('render_frame 3 separate', 'ae_render_frame', { comp: C, times: ['0f', '30f', '60f'] }, (r) => !r.error && r.images === 3);
   await t('review_motion', 'ae_review_motion', { comp: C, frames: 8 }, (r) => !r.error && r.images === 1);
 
+  // --- proof-read ---
+  await t('proof checks list', 'ae_proof', { action: 'checks' },
+    (r) => !r.error && /overlap/.test(r.txt) && /jitter/.test(r.txt));
+  await t('proof runs', 'ae_proof', { comp: C, samples: 40 },
+    (r) => !r.error && r.data.counts && Array.isArray(r.data.findings) && /samples every/.test(r.data.range));
+  await t('proof severity filter', 'ae_proof', { comp: C, severity: 'error' },
+    (r) => !r.error && r.data.findings.every((f) => f.severity === 'error'));
+  {
+    /* Two readable layers in the same place is the thing it exists to catch. */
+    const clash = 'Clash ' + RUN;
+    await call('ae_create_layer', { comp: C, kind: 'text', options: { name: clash, text: 'Overlapping', style: { fontSize: 120 } } });
+    await call('ae_set_property', { comp: C, layer: clash, path: ['Transform', 'Position'], value: [960, 300] });
+    await t('proof catches a planted overlap', 'ae_proof', { comp: C, samples: 30, group: 'space' },
+      (r) => !r.error && r.data.findings.some((f) => f.check === 'overlap' && f.where.includes(clash)));
+    await call('ae_delete_layer', { comp: C, layer: clash });
+  }
+  await t('proof leaves nothing behind', 'ae_comp_tree', { comp: C, animation: false },
+    (r) => !r.error && !r.data.layers.some((l) => /^Clash /.test(l.name)));
+
   // --- menu & raw ---
   await t('menu_command dialog refused', 'ae_menu_command', { command: 'Composition Settings...' }, (r) => !!r.error && /dialog/.test(r.error));
   await t('menu_command unknown', 'ae_menu_command', { command: 'Definitely Not A Command' }, (r) => !!r.error);
@@ -343,6 +362,18 @@ async function t(label, name, args, check) {
     record(label + ' leaves no undo step', a === b, b + ' → ' + a);
     if (a !== b) { await call('ae_delete_layer', { comp: C, layer: 'undo-probe' }); }
   }
+
+  // --- AI-native templates: every one builds cleanly ---
+  const list = await call('ae_template', { action: 'list' });
+  record('templates listed', !list.error && list.data.templates.length >= 7, list.error);
+  for (const tp of (list.data ? list.data.templates : [])) {
+    await t('template builds: ' + tp.name, 'ae_template', { action: 'build', template: tp.name, comp: 'T ' + tp.name + ' ' + RUN, preview: false },
+      (r) => !r.error && r.data.expressionErrors.length === 0);
+  }
+  await t('template refuses over-long copy', 'ae_template', { action: 'build', template: 'lower-third', values: { name: 'x'.repeat(60) } },
+    (r) => !!r.error && /characters/.test(r.error));
+  await t('template refuses unknown slot', 'ae_template', { action: 'build', template: 'lower-third', values: { colour: '#fff' } },
+    (r) => !!r.error && /not a slot/.test(r.error));
 
   /* Last: an export attaches an invisible undo step to the next edit. */
   await t('essential graphics export .mogrt', 'ae_essential_graphics', { comp: C, action: 'export', file: path.join(out, 'test-template.mogrt'), overwrite: true },

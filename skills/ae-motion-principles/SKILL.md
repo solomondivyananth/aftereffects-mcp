@@ -118,6 +118,10 @@ Values tell you nothing about feel. After every motion change:
 - `ae_review_motion` over the move, with `frames` of about 2 per frame of
   animation, up to 48. Check that the landing decelerates, and that nothing
   arrives on the same frame as something else unless it's meant to.
+- `ae_proof` reads the timing back as numbers: keys off the frame grid,
+  linear easing left on, speed that snaps at a keyframe, a cascade whose
+  offsets drift, four things starting at once (`ae-motion-proof`). It cannot
+  tell you whether the move feels good — that is what watching is for.
 - If there's a reference, compare frame by frame with the
   `video-reference-compare` skill.
 - Say what you *saw* ("it lands on frame 14 and settles by 19"), not what you

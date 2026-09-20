@@ -1,0 +1,548 @@
+{
+  "name": "lower-third",
+  "title": "Lower Third",
+  "description": "Name and title for a speaker or subject: an accent bar grows in, the name arrives letter by letter with a soft blur, the title follows, and everything fades out cleanly at the end. Transparent over footage, or on a backdrop for previews.",
+  "formats": [
+    "16x9",
+    "9x16",
+    "1x1",
+    "4x5"
+  ],
+  "duration": 5,
+  "fps": 30,
+  "slots": {
+    "name": {
+      "type": "text",
+      "default": "Jordan Lee",
+      "maxChars": 32,
+      "required": true,
+      "describe": "The person's name, or the main line."
+    },
+    "title": {
+      "type": "text",
+      "default": "Head of Motion Design",
+      "maxChars": 44,
+      "describe": "Job title or a short second line. Empty hides it."
+    },
+    "accent": {
+      "type": "color",
+      "default": "#7a5cff",
+      "describe": "Accent bar colour."
+    },
+    "theme": {
+      "type": "enum",
+      "values": [
+        "dark",
+        "light"
+      ],
+      "default": "dark",
+      "describe": "dark: white text for darker footage. light: dark text."
+    },
+    "backdrop": {
+      "type": "bool",
+      "default": true,
+      "describe": "Add a plain backdrop to preview on. Turn off to lay it over footage."
+    }
+  },
+  "steps": [
+    {
+      "let": {
+        "mx": "{{W * 0.07}}",
+        "by": "{{portrait ? H * 0.74 : H * 0.8}}",
+        "ink": "{{theme == 'dark' ? '#ffffff' : '#15141c'}}",
+        "muted": "{{theme == 'dark' ? '#c4c1d4' : '#55516a'}}"
+      }
+    },
+    {
+      "tool": "ae_create_comp",
+      "args": {
+        "name": "{{comp}}",
+        "width": "{{W}}",
+        "height": "{{H}}",
+        "frameRate": "{{fps}}",
+        "duration": "{{dur}}",
+        "bgColor": "#000000"
+      }
+    },
+    {
+      "when": "backdrop",
+      "tool": "ae_create_layer",
+      "args": {
+        "comp": "{{comp}}",
+        "kind": "solid",
+        "options": {
+          "name": "Backdrop",
+          "color": "{{theme == 'dark' ? '#1b1a22' : '#efedf5'}}"
+        }
+      }
+    },
+    {
+      "tool": "ae_create_layer",
+      "args": {
+        "comp": "{{comp}}",
+        "kind": "null",
+        "options": {
+          "name": "Controls"
+        }
+      }
+    },
+    {
+      "tool": "ae_add_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Controls",
+        "path": [
+          "Effects"
+        ],
+        "add": "ADBE Color Control",
+        "name": "Accent"
+      }
+    },
+    {
+      "tool": "ae_set_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Controls",
+        "path": [
+          "Effects",
+          "Accent",
+          "Color"
+        ],
+        "value": "{{accent}}"
+      }
+    },
+    {
+      "tool": "ae_shape",
+      "args": {
+        "comp": "{{comp}}",
+        "name": "Bar",
+        "shape": "rect",
+        "size": [
+          "{{10 * S}}",
+          "{{150 * S}}"
+        ],
+        "fill": "{{accent}}"
+      }
+    },
+    {
+      "tool": "ae_set_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Bar",
+        "path": [
+          "Transform",
+          "Position"
+        ],
+        "value": [
+          "{{mx}}",
+          "{{by}}"
+        ]
+      }
+    },
+    {
+      "tool": "ae_set_expression",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Bar",
+        "path": [
+          "Contents",
+          "Bar",
+          "Contents",
+          "Fill 1",
+          "Color"
+        ],
+        "expression": "thisComp.layer(\"Controls\").effect(\"Accent\")(\"Color\")"
+      }
+    },
+    {
+      "tool": "ae_add_keyframes",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Bar",
+        "path": [
+          "Transform",
+          "Scale"
+        ],
+        "keys": [
+          {
+            "time": "4f",
+            "value": [
+              100,
+              0
+            ],
+            "ease": {
+              "out": 20
+            }
+          },
+          {
+            "time": "16f",
+            "value": [
+              100,
+              100
+            ],
+            "ease": {
+              "in": 85
+            }
+          }
+        ]
+      }
+    },
+    {
+      "tool": "ae_create_layer",
+      "args": {
+        "comp": "{{comp}}",
+        "kind": "text",
+        "options": {
+          "name": "Name",
+          "text": "{{name}}",
+          "style": {
+            "fontSize": "{{68 * S}}",
+            "fillColor": "{{ink}}",
+            "justification": "left",
+            "tracking": -10
+          },
+          "position": [
+            "{{mx + 34 * S}}",
+            "{{by - 12 * S}}"
+          ]
+        }
+      }
+    },
+    {
+      "tool": "ae_add_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Name",
+        "path": [
+          "Text",
+          "Animators"
+        ],
+        "add": "ADBE Text Animator",
+        "name": "In",
+        "animate": [
+          "ADBE Text Opacity",
+          "ADBE Text Blur",
+          "ADBE Text Position 3D"
+        ]
+      }
+    },
+    {
+      "tool": "ae_add_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Name",
+        "path": [
+          "Text",
+          "Animators",
+          "In",
+          "Selectors"
+        ],
+        "add": "ADBE Text Selector"
+      }
+    },
+    {
+      "tool": "ae_set_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Name",
+        "path": [
+          "Text",
+          "Animators",
+          "In",
+          "Properties",
+          "Opacity"
+        ],
+        "value": 0
+      }
+    },
+    {
+      "tool": "ae_set_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Name",
+        "path": [
+          "Text",
+          "Animators",
+          "In",
+          "Properties",
+          "Blur"
+        ],
+        "value": [
+          12,
+          12
+        ]
+      }
+    },
+    {
+      "tool": "ae_set_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Name",
+        "path": [
+          "Text",
+          "Animators",
+          "In",
+          "Properties",
+          "Position"
+        ],
+        "value": [
+          "{{-26 * S}}",
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "tool": "ae_set_property",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Name",
+        "path": [
+          "Text",
+          "Animators",
+          "In",
+          "Selectors",
+          "Range Selector 1",
+          "Advanced",
+          "Shape"
+        ],
+        "value": 2
+      }
+    },
+    {
+      "tool": "ae_add_keyframes",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Name",
+        "path": [
+          "Text",
+          "Animators",
+          "In",
+          "Selectors",
+          "Range Selector 1",
+          "Offset"
+        ],
+        "keys": [
+          {
+            "time": "8f",
+            "value": -100
+          },
+          {
+            "time": "28f",
+            "value": 100,
+            "ease": {
+              "in": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "when": "title.length > 0",
+      "tool": "ae_create_layer",
+      "args": {
+        "comp": "{{comp}}",
+        "kind": "text",
+        "options": {
+          "name": "Title",
+          "text": "{{title}}",
+          "style": {
+            "fontSize": "{{36 * S}}",
+            "fillColor": "{{muted}}",
+            "justification": "left"
+          },
+          "position": [
+            "{{mx + 36 * S}}",
+            "{{by + 48 * S}}"
+          ]
+        }
+      }
+    },
+    {
+      "when": "title.length > 0",
+      "tool": "ae_add_keyframes",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Title",
+        "path": [
+          "Transform",
+          "Opacity"
+        ],
+        "keys": [
+          {
+            "time": "16f",
+            "value": 0
+          },
+          {
+            "time": "30f",
+            "value": 100,
+            "ease": {
+              "in": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "when": "title.length > 0",
+      "tool": "ae_add_keyframes",
+      "args": {
+        "comp": "{{comp}}",
+        "layer": "Title",
+        "path": [
+          "Transform",
+          "Position"
+        ],
+        "keys": [
+          {
+            "time": "16f",
+            "value": [
+              "{{mx + 36 * S}}",
+              "{{by + 62 * S}}"
+            ],
+            "ease": {
+              "out": 20
+            }
+          },
+          {
+            "time": "30f",
+            "value": [
+              "{{mx + 36 * S}}",
+              "{{by + 48 * S}}"
+            ],
+            "ease": {
+              "in": 85
+            }
+          }
+        ]
+      }
+    },
+    {
+      "tool": "ae_add_keyframes",
+      "args": {
+        "comp": "{{comp}}",
+        "layers": [
+          "Name",
+          "Title",
+          "Bar"
+        ],
+        "path": [
+          "Transform",
+          "Opacity"
+        ],
+        "keys": [
+          {
+            "time": "{{dur - 0.6}}",
+            "value": 100
+          },
+          {
+            "time": "{{dur - 0.15}}",
+            "value": 0,
+            "ease": {
+              "in": 60
+            }
+          }
+        ]
+      },
+      "when": "title.length > 0"
+    },
+    {
+      "tool": "ae_add_keyframes",
+      "args": {
+        "comp": "{{comp}}",
+        "layers": [
+          "Name",
+          "Bar"
+        ],
+        "path": [
+          "Transform",
+          "Opacity"
+        ],
+        "keys": [
+          {
+            "time": "{{dur - 0.6}}",
+            "value": 100
+          },
+          {
+            "time": "{{dur - 0.15}}",
+            "value": 0,
+            "ease": {
+              "in": 60
+            }
+          }
+        ]
+      },
+      "when": "title.length == 0"
+    },
+    {
+      "when": "title.length > 0",
+      "tool": "ae_essential_graphics",
+      "args": {
+        "comp": "{{comp}}",
+        "action": "add",
+        "properties": [
+          {
+            "layer": "Name",
+            "path": [
+              "Text",
+              "Source Text"
+            ],
+            "name": "Name"
+          },
+          {
+            "layer": "Title",
+            "path": [
+              "Text",
+              "Source Text"
+            ],
+            "name": "Title"
+          },
+          {
+            "layer": "Controls",
+            "path": [
+              "Effects",
+              "Accent",
+              "Color"
+            ],
+            "name": "Accent colour"
+          }
+        ]
+      }
+    },
+    {
+      "when": "title.length == 0",
+      "tool": "ae_essential_graphics",
+      "args": {
+        "comp": "{{comp}}",
+        "action": "add",
+        "properties": [
+          {
+            "layer": "Name",
+            "path": [
+              "Text",
+              "Source Text"
+            ],
+            "name": "Name"
+          },
+          {
+            "layer": "Controls",
+            "path": [
+              "Effects",
+              "Accent",
+              "Color"
+            ],
+            "name": "Accent colour"
+          }
+        ]
+      }
+    },
+    {
+      "tool": "ae_essential_graphics",
+      "args": {
+        "comp": "{{comp}}",
+        "action": "set_name",
+        "name": "{{comp}}"
+      }
+    }
+  ]
+}

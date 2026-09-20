@@ -13,6 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync, execFile } = require('child_process');
+const { analyse, CHECKS, GROUPS } = require('./proof.js');
 
 const PORT = parseInt(process.env.AE_BRIDGE_PORT || '7788', 10);
 const STATE_PATH = path.join(os.homedir(), '.ae-mcp-bridge.json');
@@ -238,6 +239,21 @@ const TOOLS = [
     fn: 'find_animation'
   },
   {
+    name: 'ae_proof',
+    description: 'Proof-read a comp. Samples where everything is over time and screens it for the mechanical mistakes the eye stops seeing: elements overlapping or clipped by the frame, jitter and flicker, one-frame pops, keys off the frame grid, linear easing, text too small or too brief to read, uneven staggers, missing motion blur on fast moves, broken expressions, solo switches left on, an empty first frame. Returns findings ranked error → warning → note, each with the layers, the time to look at and the fix, plus "look_at" times to render. Read-only — nothing moves, not even the playhead. action "checks" lists everything it screens.',
+    inputSchema: obj({
+      action: { type: 'string', enum: ['run', 'checks'], description: 'Default "run".' },
+      comp: S.comp,
+      start: { ...TIME, description: 'Default work area start.' },
+      duration: { ...TIME, description: 'Default work area duration.' },
+      samples: { type: 'number', description: 'How many moments to sample (default 60, max 240). More catches finer jitter and costs time.' },
+      severity: { type: 'string', enum: ['error', 'warn', 'note'], description: 'Lowest severity to report. Default note (everything).' },
+      group: { type: 'string', enum: ['space', 'jitter', 'timing', 'physics', 'integrity'], description: 'Only this group of checks.' },
+      limit: { type: 'number', description: 'Most findings to return. Default 60.' }
+    }),
+    custom: 'proof'
+  },
+  {
     name: 'ae_selection',
     description: 'What the user has selected: active comp, playhead (seconds and frame), work area, selected layers, selected properties with their paths and selected keyframes. Use when they say "this", "these keys", "here".',
     inputSchema: obj({}),
@@ -280,7 +296,7 @@ const TOOLS = [
   },
   {
     name: 'ae_review_motion',
-    description: 'Watch animation move: samples a range, stitches an MP4 you can open, returns one contact sheet. The only way to judge whether timing and easing feel right — use after animating anything.',
+    description: 'Watch animation move: samples a range, stitches an MP4 you can open, returns one contact sheet. The only way to judge whether timing and easing feel right — use after animating anything. For the faults the eye misses (overlaps, jitter, pops, off-grid keys) run ae_proof as well.',
     inputSchema: obj({
       comp: S.comp,
       start: { ...TIME, description: 'Default work area start.' },
@@ -713,6 +729,32 @@ const TOOLS = [
   }
 ];
 
+TOOLS.push(
+  {
+    name: 'ae_template',
+    description: 'AI-native templates: finished, animated designs you fill from a brief. "list" shows them; "describe" shows a template\'s slots (text limits, colours, lists, options, defaults); "build" makes the comp in one undo step (rolled back on any failure) and returns a contact sheet to check. Every build gets a Controls layer and Essential Graphics controls for people to edit later. Proof the result with ae_proof before calling it done. WRITE.',
+    inputSchema: obj({
+      action: { type: 'string', enum: ['list', 'describe', 'build'] },
+      template: { type: 'string', description: 'Template name from "list".' },
+      values: { type: 'object', description: 'build: slot name → value. Omitted slots use their defaults.' },
+      format: { type: 'string', description: 'build: "16x9" (default), "9x16", "1x1" or "4x5", if the template supports it.' },
+      comp: { type: 'string', description: 'build: name for the new comp. Default: the template title.' },
+      preview: { type: 'boolean', description: 'build: return a contact sheet of the result. Default true.' },
+      open: { type: 'boolean', description: 'build: open the new comp in the viewer (brings After Effects to the front). Default false.' }
+    }, ['action']),
+    custom: 'template'
+  },
+  {
+    name: 'ae_welcome',
+    description: 'Build the AE MCP Bridge welcome animation in the open project — the quickest way to prove the whole connection works (client → MCP server → panel → After Effects). Returns a contact sheet. WRITE.',
+    inputSchema: obj({
+      accent: { description: 'Accent colour. Default "#9f8cff".' },
+      open: { type: 'boolean', description: 'Open it in the viewer. Default true.' }
+    }),
+    custom: 'welcome'
+  }
+);
+
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
 
 /* ------------------------------------------------------------------ */
@@ -836,6 +878,36 @@ async function reviewMotion(args) {
   return { content };
 }
 
+/* Proof-read: the panel samples the comp, proof.js applies the rules, and the
+   model gets findings instead of a wall of geometry. */
+async function proofread(args) {
+  if (args.action === 'checks') {
+    const groups = {};
+    for (const c of CHECKS) { (groups[GROUPS[c.group]] = groups[GROUPS[c.group]] || []).push(c.id + ': ' + c.what); }
+    return { content: [text({ screens: CHECKS.length + ' checks', groups,
+      note: 'Mechanical checks only. Whether the motion feels right is still a job for ae_review_motion and your eyes.' })] };
+  }
+
+  const req = { comp: args.comp };
+  if (args.start !== undefined) { req.start = args.start; }
+  if (args.duration !== undefined) { req.duration = args.duration; }
+  if (args.samples !== undefined) { req.samples = args.samples; }
+
+  const data = await bridge('proof', req);
+  const report = analyse(data, { limit: args.limit });
+
+  if (args.severity || args.group) {
+    const rank = { error: 0, warn: 1, note: 2 };
+    const floor = rank[args.severity || 'note'];
+    const group = args.group ? new Set(CHECKS.filter((c) => c.group === args.group).map((c) => c.id)) : null;
+    const before = report.findings.length;
+    report.findings = report.findings.filter((f) =>
+      rank[f.severity] <= floor && (!group || group.has(f.check)));
+    report.filtered = before - report.findings.length + ' finding(s) hidden by the filter';
+  }
+  return { content: [text(report)] };
+}
+
 async function renderFrames(args) {
   const result = await bridge('render_frame', args);
   const meta = {
@@ -869,12 +941,200 @@ async function renderFrames(args) {
   return { content };
 }
 
+/* ------------------------------------------------------------------ */
+/* Templates                                                           */
+/* ------------------------------------------------------------------ */
+
+/* A template is JSON in templates/: typed slots plus the bridge steps that
+   build it. Values reach steps through {{expressions}}; slot values are
+   passed as data, never evaluated as code. */
+const TEMPLATES_DIR = path.join(ROOT, 'templates');
+const FORMATS = { '16x9': [1920, 1080], '9x16': [1080, 1920], '1x1': [1080, 1080], '4x5': [1080, 1350] };
+
+function loadTemplates() {
+  const out = {};
+  let files = [];
+  try { files = fs.readdirSync(TEMPLATES_DIR).filter((f) => /\.json$/.test(f)).sort(); } catch (e) { return out; }
+  for (const f of files) {
+    const t = JSON.parse(fs.readFileSync(path.join(TEMPLATES_DIR, f), 'utf8'));
+    out[t.name] = t;
+  }
+  return out;
+}
+
+const HELPERS = {
+  max: (list, key) => Math.max.apply(null, list.map((x) => Number(key ? x[key] : x))),
+  len: (x) => (x == null ? 0 : x.length),
+  pick: (list, i) => list[((i % list.length) + list.length) % list.length],
+  upper: (sv) => String(sv).toUpperCase(),
+  fixed: (n, d) => Number(n).toFixed(d || 0)
+};
+
+function evalExpr(expr, ctx) {
+  /* Only the template author writes expressions; slot values arrive as
+     variables. Keep the grammar to arithmetic, comparisons, ?:, calls to
+     the helpers above and Math, and literals. */
+  const bare = expr.replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g, '""');
+  if (/[;{}`]|=>/.test(bare) || /[^=!<>]=[^=]/.test(bare)) { throw new Error('Template expression not allowed: ' + expr); }
+  /* Names after a dot are properties (item.label, s.length), not variables. */
+  const ids = bare.replace(/\.\s*[A-Za-z_$][\w$]*/g, '').match(/[A-Za-z_$][\w$]*/g) || [];
+  const scope = Object.assign({}, HELPERS, ctx);
+  for (const id of ids) {
+    if (!(id in scope) && !['Math', 'true', 'false', 'null', 'undefined', 'Number', 'String'].includes(id)) {
+      throw new Error('Unknown name "' + id + '" in template expression: ' + expr);
+    }
+  }
+  const keys = Object.keys(scope);
+  return Function.apply(null, keys.concat('"use strict"; return (' + expr + ');')).apply(null, keys.map((k) => scope[k]));
+}
+
+function subst(v, ctx) {
+  if (typeof v === 'string') {
+    const whole = v.match(/^\{\{([\s\S]+)\}\}$/);
+    if (whole && whole[1].indexOf('{{') === -1) { return evalExpr(whole[1], ctx); }
+    return v.replace(/\{\{([\s\S]+?)\}\}/g, (m, e) => String(evalExpr(e, ctx)));
+  }
+  if (Array.isArray(v)) { return v.map((x) => subst(x, ctx)); }
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const k of Object.keys(v)) { o[k] = subst(v[k], ctx); }
+    return o;
+  }
+  return v;
+}
+
+function expandSteps(steps, ctx, out) {
+  for (const st of steps) {
+    if (st.when !== undefined && !evalExpr(st.when, ctx)) { continue; }
+    if (st.repeat) {
+      const list = evalExpr(st.repeat.over, ctx);
+      list.forEach((item, i) => {
+        const inner = Object.assign({}, ctx, { [st.repeat.as || 'item']: item, [st.repeat.index || 'i']: i });
+        expandSteps(st.steps, inner, out);
+      });
+      continue;
+    }
+    if (st.let) {
+      for (const k of Object.keys(st.let)) { ctx[k] = subst(st.let[k], ctx); }
+      continue;
+    }
+    out.push({ tool: st.tool, args: subst(st.args || {}, ctx) });
+  }
+  return out;
+}
+
+const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+function resolveSlots(t, values) {
+  const out = {}, problems = [];
+  values = values || {};
+  for (const k of Object.keys(values)) { if (!t.slots[k]) { problems.push('"' + k + '" is not a slot of ' + t.name); } }
+  for (const [k, spec] of Object.entries(t.slots)) {
+    let v = values[k] === undefined ? spec.default : values[k];
+    if (spec.type === 'text') {
+      v = String(v == null ? '' : v);
+      if (spec.maxChars && v.length > spec.maxChars) { problems.push(k + ' is ' + v.length + ' characters; the design fits ' + spec.maxChars + '. Shorten it.'); }
+      if (spec.required && !v.trim()) { problems.push(k + ' is required.'); }
+    } else if (spec.type === 'color') {
+      if (!HEX.test(String(v))) { problems.push(k + ' must be a hex colour like "#7a5cff".'); }
+    } else if (spec.type === 'number') {
+      v = Number(v);
+      if (isNaN(v)) { problems.push(k + ' must be a number.'); }
+      if (spec.min !== undefined && v < spec.min) { problems.push(k + ' must be at least ' + spec.min + '.'); }
+      if (spec.max !== undefined && v > spec.max) { problems.push(k + ' must be at most ' + spec.max + '.'); }
+    } else if (spec.type === 'enum') {
+      if (!spec.values.includes(v)) { problems.push(k + ' must be one of: ' + spec.values.join(', ') + '.'); }
+    } else if (spec.type === 'bool') {
+      v = !!v;
+    } else if (spec.type === 'list') {
+      if (!Array.isArray(v)) { problems.push(k + ' must be a list.'); v = []; }
+      if (spec.minItems && v.length < spec.minItems) { problems.push(k + ' needs at least ' + spec.minItems + ' items.'); }
+      if (spec.maxItems && v.length > spec.maxItems) { problems.push(k + ' takes at most ' + spec.maxItems + ' items; the design has room for that many.'); }
+      v.forEach((it, i) => {
+        if (spec.item === 'text' && spec.maxChars && String(it).length > spec.maxChars) {
+          problems.push(k + '[' + i + '] is ' + String(it).length + ' characters; max ' + spec.maxChars + '.');
+        }
+        if (spec.item && typeof spec.item === 'object') {
+          for (const [fk, fs2] of Object.entries(spec.item)) {
+            if (it[fk] === undefined) { problems.push(k + '[' + i + '] is missing "' + fk + '".'); }
+            if (fs2 === 'number' && isNaN(Number(it[fk]))) { problems.push(k + '[' + i + '].' + fk + ' must be a number.'); }
+            if (fs2.maxChars && String(it[fk]).length > fs2.maxChars) { problems.push(k + '[' + i + '].' + fk + ' is too long; max ' + fs2.maxChars + '.'); }
+          }
+        }
+      });
+    }
+    out[k] = v;
+  }
+  return { values: out, problems };
+}
+
+function describeTemplate(t) {
+  return {
+    name: t.name, title: t.title, description: t.description, formats: t.formats || ['16x9'],
+    duration: t.duration, fps: t.fps || 30,
+    slots: Object.fromEntries(Object.entries(t.slots).map(([k, v]) => [k, v]))
+  };
+}
+
+async function runTemplate(args) {
+  const all = loadTemplates();
+  if (args.action === 'list') {
+    return { content: [text({ templates: Object.values(all).map((t) => ({ name: t.name, title: t.title, description: t.description, formats: t.formats || ['16x9'] })) })] };
+  }
+  const t = all[args.template];
+  if (!t) { throw new Error('No template "' + args.template + '". Available: ' + Object.keys(all).join(', ')); }
+  if (args.action === 'describe') { return { content: [text(describeTemplate(t))] }; }
+  if (args.action !== 'build') { throw new Error('action must be list, describe or build.'); }
+
+  const format = args.format || (t.formats || ['16x9'])[0];
+  if (!(t.formats || ['16x9']).includes(format)) { throw new Error(t.name + ' supports ' + (t.formats || ['16x9']).join(', ') + '.'); }
+  const { values, problems } = resolveSlots(t, args.values);
+  if (problems.length) { throw new Error('Cannot build ' + t.name + ':\n- ' + problems.join('\n- ')); }
+
+  const [W, H] = FORMATS[format];
+  const fps = t.fps || 30;
+  const compName = args.comp || t.title + (format !== '16x9' ? ' ' + format : '');
+  /* Duration may depend on the content, e.g. one beat per word. */
+  const dur = typeof t.duration === 'string'
+    ? Number(evalExpr(t.duration, Object.assign({}, t.data || {}, values, { fps }))) : t.duration;
+  const ctx = Object.assign({}, t.data || {}, values, {
+    comp: compName, W, H, fps, dur, cx: W / 2, cy: H / 2,
+    S: Math.min(W, H) / 1080, portrait: H > W, format, f: (n) => n / fps,
+    toolCount: TOOLS.length, skillCount: loadSkills().length
+  });
+  const steps = expandSteps(t.steps, ctx, []);
+
+  const result = await bridge('batch', { name: 'Template · ' + t.title, steps, atomic: true });
+  if (!result.ok) {
+    throw new Error('Template step ' + (result.failed.step + 1) + ' (' + result.failed.tool + ') failed: ' + result.failed.error +
+      (result.rolledBack ? ' — everything was rolled back.' : ''));
+  }
+
+  /* Anything that can only fail at render time: expressions. */
+  const anim = await bridge('find_animation', { comp: compName });
+  const broken = anim.layers.flatMap((l) => l.animated.filter((a) => a.expressionError).map((a) => l.layer + ' › ' + a.path.join(' › ') + ': ' + a.expressionError.split('\n')[0]));
+  if (args.open) { await bridge('goto', { comp: compName, time: 0 }); }
+
+  const summary = { built: compName, template: t.name, format, size: W + '×' + H, duration: Math.round(dur * 100) / 100, steps: steps.length,
+    values, undo: 'one step: "MCP: Template · ' + t.title + '"', expressionErrors: broken,
+    edit: 'Change slots later in the Essential Graphics panel or on the Controls layer, or rebuild with new values.' };
+  if (args.preview === false) { return { content: [text(summary)] }; }
+  const sheet = await renderFrames({ comp: compName, frames: 8, downscale: 4, sheet: true });
+  return { content: [text(summary)].concat(sheet.content.filter((c) => c.type === 'image')) };
+}
+
 async function runTool(name, args) {
   const tool = BY_NAME.get(name);
   if (!tool) { throw new Error('Unknown tool: ' + name); }
   args = args || {};
 
   if (tool.custom === 'review_motion') { return reviewMotion(args); }
+  if (tool.custom === 'proof') { return proofread(args); }
+  if (tool.custom === 'template') { return runTemplate(args); }
+  if (tool.custom === 'welcome') {
+    return runTemplate({ action: 'build', template: 'welcome', comp: 'Welcome · AE MCP Bridge',
+      values: args.accent ? { accent: args.accent } : {}, open: args.open !== false, preview: true });
+  }
   if (tool.image) { return renderFrames(args); }
 
   const result = await bridge(tool.fn, args);
@@ -949,8 +1209,10 @@ async function handleMessage(msg) {
       capabilities: { tools: {}, prompts: {}, resources: {} },
       serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
       instructions: 'Tools for a live After Effects session. Read before editing, render a frame after ' +
-        'every visual change, and use ae_review_motion to judge timing. The "after-effects" prompt has the full guide; ' +
-        'the ae-* prompts cover motion principles, expressions, effects, transitions, morphs, camera and 3D, and delivery.'
+        'every visual change, use ae_review_motion to judge timing, and run ae_proof before calling a comp done — ' +
+        'it screens for overlaps, jitter, pops, unreadable text and switches left on. The "after-effects" prompt has ' +
+        'the full guide; the ae-* prompts cover motion principles, typography, expressions, effects, transitions, ' +
+        'morphs, camera and 3D, colour, audio, data, templates, proof-reading and delivery.'
     });
   }
   if (method === 'notifications/initialized' || method === 'notifications/cancelled') { return; }
@@ -1038,4 +1300,4 @@ process.stdin.on('end', () => { stdinClosed = true; maybeExit(); });
 
 if (require.main === module) { serve(); }
 
-module.exports = { TOOLS };
+module.exports = { TOOLS, loadTemplates, resolveSlots, expandSteps, evalExpr, FORMATS };

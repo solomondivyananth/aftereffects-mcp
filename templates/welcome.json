@@ -1,0 +1,130 @@
+{
+  "name": "welcome",
+  "title": "Welcome",
+  "description": "The AE MCP Bridge welcome: a stomp sequence that says what the bridge does, one claim per beat with the real tool named under it, flash frames, accent bars and a shake on every hit, ending on the logo lockup with live tool and skill counts. Building it proves the whole connection works.",
+  "formats": ["16x9", "9x16", "1x1"],
+  "duration": 13.5,
+  "fps": 30,
+  "data": {
+    "beats": [
+      { "t": 0, "w": "AFTER", "s": 1.0 },
+      { "t": 10, "w": "EFFECTS", "s": 0.9 },
+      { "t": 21, "w": "MEETS", "s": 0.8, "bg": "light" },
+      { "t": 31, "w": "AI", "s": 2.2, "flash": true, "bg": "accent" },
+      { "t": 48, "w": "READ", "s": 1.0, "rot": -3 },
+      { "t": 57, "w": "EVERY", "s": 1.0, "rot": 2 },
+      { "t": 66, "w": "LAYER.", "s": 1.05, "sub": "ae_comp_tree · ae_layer_detail", "bar": true },
+      { "t": 80, "w": "SEE", "s": 1.0 },
+      { "t": 89, "w": "EVERY", "s": 1.0, "rot": -2 },
+      { "t": 98, "w": "FRAME.", "s": 1.05, "sub": "ae_render_frame · ae_review_motion", "bg": "light" },
+      { "t": 113, "w": "EDIT", "s": 1.1 },
+      { "t": 122, "w": "LIVE.", "s": 1.4, "flash": true, "bg": "accent", "sub": "ae_set_property" },
+      { "t": 138, "w": "KEYFRAMES.", "s": 0.72, "sub": "ae_edit_keyframes" },
+      { "t": 146, "w": "EXPRESSIONS.", "s": 0.62, "sub": "ae_set_expression", "bg": "light" },
+      { "t": 154, "w": "MASKS.", "s": 0.95, "sub": "ae_masks" },
+      { "t": 161, "w": "SHAPES.", "s": 0.9, "sub": "ae_shape", "bg": "accent" },
+      { "t": 169, "w": "TEXT.", "s": 1.05, "sub": "ae_text" },
+      { "t": 177, "w": "TEMPLATES.", "s": 0.72, "sub": "ae_template", "bg": "light" },
+      { "t": 185, "w": "RENDERS.", "s": 0.8, "sub": "ae_render_video" },
+      { "t": 198, "w": "ONE", "s": 1.0 },
+      { "t": 206, "w": "UNDO", "s": 1.15, "bg": "light" },
+      { "t": 215, "w": "PER", "s": 1.0 },
+      { "t": 223, "w": "EDIT.", "s": 1.1, "sub": "Edit ▸ Undo “MCP: …”", "bar": true },
+      { "t": 239, "w": "#TOOLS", "s": 2.4, "flash": true, "bg": "accent" },
+      { "t": 254, "w": "TOOLS", "s": 1.05 },
+      { "t": 264, "w": "+ SKILLS", "s": 0.9, "bg": "light" },
+      { "t": 278, "w": "IN YOUR", "s": 0.85 },
+      { "t": 287, "w": "TIMELINE.", "s": 0.85, "flash": true, "bar": true }
+    ],
+    "lockAt": 305
+  },
+  "slots": {
+    "accent": { "type": "color", "default": "#9f8cff", "describe": "Accent colour for the accent beats, bars and the logo." },
+    "font": { "type": "text", "default": "Impact", "maxChars": 60, "describe": "PostScript name of a heavy display font. Must be installed." }
+  },
+  "steps": [
+    { "let": { "dark": "#0e0e12", "light": "#efedf5", "last": "{{len(beats) - 1}}" } },
+
+    { "tool": "ae_create_comp", "args": { "name": "{{comp}}", "width": "{{W}}", "height": "{{H}}", "frameRate": "{{fps}}", "duration": "{{dur}}", "bgColor": "{{dark}}" } },
+    { "tool": "ae_set_comp_settings", "args": { "comp": "{{comp}}", "settings": { "motionBlur": true, "shutterAngle": 180 } } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "null", "options": { "name": "Controls" } } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects"], "add": "ADBE Color Control", "name": "Accent" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Controls", "path": ["Effects", "Accent", "Color"], "value": "{{accent}}" } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "null", "options": { "name": "Rig", "position": ["{{cx}}", "{{cy}}"] } } },
+    { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "Rig", "path": ["Transform", "Position"],
+      "expression": "var m = thisComp.marker, t = 999;\nif (m.numKeys > 0) {\n  var n = m.nearestKey(time).index;\n  if (m.key(n).time > time) { n--; }\n  if (n > 0) { t = time - m.key(n).time; }\n}\nvar amp = 16 * Math.exp(-t * 16);\nvalue + [Math.sin(t * 97) * amp, Math.cos(t * 131) * amp * 0.7]" } },
+
+    { "repeat": { "over": "beats", "as": "b", "index": "i" }, "steps": [
+      { "let": {
+        "t0": "{{b.t}}",
+        "t1": "{{i == last ? lockAt : beats[i + 1].t}}",
+        "kind": "{{b.bg || 'dark'}}",
+        "word": "{{b.w == '#TOOLS' ? String(toolCount) : b.w}}",
+        "n": "{{i + 1}}"
+      } },
+      { "let": {
+        "size": "{{Math.min(W * 0.2 * b.s, W * 0.92 / Math.max(1.6, word.length * 0.56))}}",
+        "ink": "{{kind == 'light' ? '#141418' : (kind == 'accent' ? '#0e0e12' : '#ffffff')}}",
+        "subInk": "{{kind == 'light' ? '#4d45a8' : (kind == 'accent' ? '#0e0e12' : '#b9b2ff')}}"
+      } },
+      { "tool": "ae_markers", "args": { "comp": "{{comp}}", "action": "add", "marker": { "time": "{{t0 + 'f'}}", "comment": "{{word}}" } } },
+      { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "{{'BG ' + n}}", "color": "{{kind == 'light' ? light : (kind == 'accent' ? accent : dark)}}",
+        "inPoint": "{{t0 + 'f'}}", "outPoint": "{{t1 + 'f'}}" } } },
+      { "when": "kind == 'accent'", "tool": "ae_apply_effect", "args": { "comp": "{{comp}}", "layer": "{{'BG ' + n}}", "effect": "ADBE Fill" } },
+      { "when": "kind == 'accent'", "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{'BG ' + n}}", "path": ["Effects", "Fill", "Color"], "expression": "thisComp.layer(\"Controls\").effect(\"Accent\")(\"Color\")" } },
+      { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "{{'Word ' + n}}", "text": "{{word}}",
+        "style": { "font": "{{font}}", "fontSize": "{{size}}", "fillColor": "{{ink}}", "justification": "center" },
+        "parent": "Rig", "inPoint": "{{t0 + 'f'}}", "outPoint": "{{t1 + 'f'}}" } } },
+      { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{'Word ' + n}}", "path": ["Transform", "Position"], "value": [0, "{{size * 0.36}}"] } },
+      { "when": "b.rot", "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{'Word ' + n}}", "path": ["Transform", "Rotation"], "value": "{{b.rot || 0}}" } },
+      { "tool": "ae_set_layer_props", "args": { "comp": "{{comp}}", "layer": "{{'Word ' + n}}", "props": { "motionBlur": true } } },
+      { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{'Word ' + n}}", "path": ["Transform", "Scale"], "keys": [
+        { "time": "{{t0 + 'f'}}", "value": [310, 310], "ease": { "out": 10 } },
+        { "time": "{{(t0 + 3) + 'f'}}", "value": [92, 92], "ease": "easy" },
+        { "time": "{{(t0 + 6) + 'f'}}", "value": [100, 100], "ease": { "in": 80 } } ] } },
+      { "when": "b.sub", "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "{{'Sub ' + n}}", "text": "{{b.sub || ''}}",
+        "style": { "fontSize": "{{26 * S}}", "fillColor": "{{subInk}}", "justification": "center", "tracking": 40 },
+        "position": ["{{cx}}", "{{H * 0.88}}"], "inPoint": "{{(t0 + 4) + 'f'}}", "outPoint": "{{t1 + 'f'}}" } } },
+      { "when": "b.bar", "tool": "ae_shape", "args": { "comp": "{{comp}}", "name": "{{'Bar ' + n}}", "shape": "rect", "size": ["{{W}}", "{{H * 0.06}}"], "fill": "{{accent}}",
+        "position": ["{{W / 2}}", 0] } },
+      { "when": "b.bar", "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "{{'Bar ' + n}}", "path": ["Transform", "Position"], "value": [0, "{{H * 0.75}}"] } },
+      { "when": "b.bar", "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "{{'Bar ' + n}}", "path": ["Contents", "{{'Bar ' + n}}", "Contents", "Fill 1", "Color"], "expression": "thisComp.layer(\"Controls\").effect(\"Accent\")(\"Color\")" } },
+      { "when": "b.bar", "tool": "ae_set_layer_props", "args": { "comp": "{{comp}}", "layer": "{{'Bar ' + n}}", "props": { "inPoint": "{{t0 + 'f'}}", "outPoint": "{{t1 + 'f'}}" } } },
+      { "when": "b.bar", "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "{{'Bar ' + n}}", "path": ["Transform", "Scale"], "keys": [
+        { "time": "{{(t0 + 1) + 'f'}}", "value": [0, 100], "ease": { "out": 20 } }, { "time": "{{(t0 + 8) + 'f'}}", "value": [100, 100], "ease": { "in": 85 } } ] } },
+      { "when": "b.flash", "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "{{'Flash ' + n}}", "color": "#ffffff",
+        "inPoint": "{{t0 + 'f'}}", "outPoint": "{{(t0 + 2) + 'f'}}" } } }
+    ] },
+
+    { "tool": "ae_markers", "args": { "comp": "{{comp}}", "action": "add", "marker": { "time": "{{lockAt + 'f'}}", "comment": "lockup" } } },
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "solid", "options": { "name": "BG Lockup", "color": "{{dark}}", "inPoint": "{{lockAt + 'f'}}" } } },
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Logo", "text": "AE MCP BRIDGE",
+      "style": { "font": "{{font}}", "fontSize": "{{Math.min(W * 0.1, 190 * S)}}", "fillColor": "#ffffff", "justification": "center" },
+      "parent": "Rig", "inPoint": "{{lockAt + 'f'}}" } } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Logo", "path": ["Transform", "Position"], "value": [0, "{{-Math.min(W * 0.1, 190 * S) * 0.05}}"] } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Logo", "path": ["Text", "Animators"], "add": "ADBE Text Animator", "name": "MCP", "animate": ["ADBE Text Fill Color"] } },
+    { "tool": "ae_add_property", "args": { "comp": "{{comp}}", "layer": "Logo", "path": ["Text", "Animators", "MCP", "Selectors"], "add": "ADBE Text Selector" } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Logo", "path": ["Text", "Animators", "MCP", "Selectors", "Range Selector 1", "Advanced", "Units"], "value": 2 } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Logo", "path": ["Text", "Animators", "MCP", "Selectors", "Range Selector 1", "ADBE Text Index Start"], "value": 3 } },
+    { "tool": "ae_set_property", "args": { "comp": "{{comp}}", "layer": "Logo", "path": ["Text", "Animators", "MCP", "Selectors", "Range Selector 1", "ADBE Text Index End"], "value": 6 } },
+    { "tool": "ae_set_expression", "args": { "comp": "{{comp}}", "layer": "Logo", "path": ["Text", "Animators", "MCP", "Properties", "Fill Color"], "expression": "thisComp.layer(\"Controls\").effect(\"Accent\")(\"Color\")" } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Logo", "path": ["Transform", "Scale"], "keys": [
+      { "time": "{{lockAt + 'f'}}", "value": [160, 160], "ease": { "out": 10 } }, { "time": "{{(lockAt + 6) + 'f'}}", "value": [100, 100], "ease": { "in": 85 } } ] } },
+
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Tag", "text": "{{toolCount + ' tools · ' + skillCount + ' skills · live in your timeline'}}",
+      "style": { "fontSize": "{{28 * S}}", "fillColor": "#c9c4dc", "justification": "center", "tracking": 60 },
+      "position": ["{{cx}}", "{{cy + Math.min(W * 0.1, 190 * S) * 0.62}}"], "inPoint": "{{(lockAt + 4) + 'f'}}" } } },
+    { "tool": "ae_create_layer", "args": { "comp": "{{comp}}", "kind": "text", "options": { "name": "Credit", "text": "by Solomon Divyananth",
+      "style": { "fontSize": "{{22 * S}}", "fillColor": "#ffffff", "justification": "center", "tracking": 40 },
+      "position": ["{{cx}}", "{{cy + Math.min(W * 0.1, 190 * S) * 0.62 + 52 * S}}"], "inPoint": "{{(lockAt + 4) + 'f'}}" } } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Tag", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "{{(lockAt + 4) + 'f'}}", "value": 0 }, { "time": "{{(lockAt + 14) + 'f'}}", "value": 100 } ] } },
+    { "tool": "ae_add_keyframes", "args": { "comp": "{{comp}}", "layer": "Credit", "path": ["Transform", "Opacity"], "keys": [
+      { "time": "{{(lockAt + 14) + 'f'}}", "value": 0 }, { "time": "{{(lockAt + 26) + 'f'}}", "value": 55 } ] } },
+
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "add", "layer": "Controls", "path": ["Effects", "Accent", "Color"], "name": "Accent colour" } },
+    { "tool": "ae_essential_graphics", "args": { "comp": "{{comp}}", "action": "set_name", "name": "{{comp}}" } }
+  ]
+}
