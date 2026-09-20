@@ -3,9 +3,12 @@
  * link-skills.js — make every skill in skills/ discoverable by the agent
  * working in this repo.
  *
- *   npm run skills            link them into ./.claude/skills
- *   npm run skills -- --user  link them into ~/.claude/skills instead, so
- *                             they load in every project on this machine
+ *   npm run skills                link them into ./.claude/skills
+ *   npm run skills -- --user      link them into ~/.claude/skills instead, so
+ *                                 they load in every project on this machine
+ *   npm run skills -- --to <dir>  link them into another project's
+ *                                 .claude/skills (the path may be the project
+ *                                 root or the skills folder itself)
  *
  * Claude Code reads .claude/skills, not skills/, so a new skill is invisible
  * until it is linked. Links (a copy on Windows, where symlinks need a
@@ -22,22 +25,34 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'skills');
-const toUser = process.argv.includes('--user');
-const DST = toUser ? path.join(os.homedir(), '.claude', 'skills') : path.join(ROOT, '.claude', 'skills');
+const argv = process.argv.slice(2);
+const toUser = argv.includes('--user');
+const toIdx = argv.indexOf('--to');
+let DST;
+if (toIdx !== -1 && argv[toIdx + 1]) {
+  const given = path.resolve(argv[toIdx + 1]);
+  DST = path.basename(given) === 'skills' ? given : path.join(given, '.claude', 'skills');
+} else if (toUser) {
+  DST = path.join(os.homedir(), '.claude', 'skills');
+} else {
+  DST = path.join(ROOT, '.claude', 'skills');
+}
 
 const skills = fs.readdirSync(SRC).filter((n) => fs.existsSync(path.join(SRC, n, 'SKILL.md')));
 fs.mkdirSync(DST, { recursive: true });
 
-/* Only ever touch entries that are ours: a link pointing into skills/, or a
-   copy of one. Anything else in there belongs to the user. */
+/* Only ever touch entries that are ours: a link that resolves into THIS
+   repo's skills/, or a copy this script made. Everything else in there
+   belongs to the user — including links to their own skill libraries, which
+   an earlier version of this check happily deleted. */
 const mine = new Set(skills);
 let linked = 0, removed = 0;
 
 for (const name of fs.readdirSync(DST)) {
   const p = path.join(DST, name);
   let target = null;
-  try { target = fs.readlinkSync(p); } catch (e) { /* not a link */ }
-  const ours = (target && target.includes(path.join('skills', name))) ||
+  try { target = path.resolve(DST, fs.readlinkSync(p)); } catch (e) { /* not a link */ }
+  const ours = (target && target === path.join(SRC, name)) ||
     (!target && fs.existsSync(path.join(p, '.from-ae-mcp')));
   if (ours && !mine.has(name)) {
     fs.rmSync(p, { recursive: true, force: true });

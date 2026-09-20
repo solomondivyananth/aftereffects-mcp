@@ -247,6 +247,7 @@ const TOOLS = [
       start: { ...TIME, description: 'Default work area start.' },
       duration: { ...TIME, description: 'Default work area duration.' },
       samples: { type: 'number', description: 'How many moments to sample (default 60, max 240). More catches finer jitter and costs time.' },
+      staging: { type: 'boolean', description: 'Judge composition (focal point, hierarchy, use of the frame). Default: on for comps that have their own full-frame background, off for overlays. Pass true for a scene comp that gets its background from a master.' },
       severity: { type: 'string', enum: ['error', 'warn', 'note'], description: 'Lowest severity to report. Default note (everything).' },
       group: { type: 'string', enum: ['space', 'jitter', 'timing', 'physics', 'integrity'], description: 'Only this group of checks.' },
       limit: { type: 'number', description: 'Most findings to return. Default 60.' }
@@ -894,7 +895,7 @@ async function proofread(args) {
   if (args.samples !== undefined) { req.samples = args.samples; }
 
   const data = await bridge('proof', req);
-  const report = analyse(data, { limit: args.limit });
+  const report = analyse(data, { limit: args.limit, staging: args.staging });
 
   if (args.severity || args.group) {
     const rank = { error: 0, warn: 1, note: 2 };

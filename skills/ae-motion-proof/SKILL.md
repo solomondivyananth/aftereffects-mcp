@@ -1,6 +1,6 @@
 ---
 name: ae-motion-proof
-description: Proof-read motion in After Effects through the AE MCP Bridge - screen a comp with ae_proof for overlapping or clipped elements, jitter, flicker, one-frame pops, keyframes off the frame grid, linear easing, text too small or too brief to read, uneven staggers, missing motion blur on fast moves, broken expressions, a solo switch left on or an empty first frame, then verify each finding on a rendered frame. Use before delivery or review, after building or editing an animation, or when asked to check, QC, proof, polish, "find what is wrong", fix overlaps or get rid of jitter.
+description: Proof-read motion in After Effects through the AE MCP Bridge - screen a comp with ae_proof for overlapping or clipped elements, jitter, flicker, one-frame pops, keyframes off the frame grid, linear easing, text too small or too brief to read, uneven staggers, missing motion blur on fast moves, broken expressions, a solo switch left on or an empty first frame, plus staging checks for a beat with no focal point, no scale hierarchy or an unused frame, then verify each finding on a rendered frame. Use before delivery or review, after building or editing an animation, or when asked to check, QC, proof, polish, "find what is wrong", fix overlaps or get rid of jitter.
 ---
 
 # Proof-read the motion
@@ -21,6 +21,7 @@ someone else's open project.
 ae_proof {"comp": "S1_HOOK"}
 ae_proof {"comp": "S1_HOOK", "start": "0.5s", "duration": "1s", "samples": 120}
 ae_proof {"comp": "Master", "severity": "warn"}
+ae_proof {"comp": "S4_PHONE", "staging": true}
 ae_proof {"action": "checks"}
 ```
 
@@ -59,7 +60,7 @@ the standard to hand work over at.
 
 ## What it screens
 
-Thirty-seven checks in five groups. Thresholds scale with the frame, so they
+Forty-one checks in six groups. Thresholds scale with the frame, so they
 hold for 1080p and for a 9:16 phone cut.
 
 ### Space and layout
@@ -76,6 +77,24 @@ hold for 1080p and for a 9:16 phone cut.
 | `text-overflow` | Text wider than the frame, or overflowing its own box | >94% of frame width |
 | `text-small` | Type too small to read at delivery size | under 2.2% of the short side |
 | `text-copy` | Double spaces, straight quotes, `...` instead of …, stray spaces | any |
+
+### Staging and hierarchy
+
+Composition, measured. These are notes, never errors — design has
+exceptions — and they only run where judging composition is fair: a comp
+with its own full-frame background. For a scene comp that gets its
+background from a master, pass `{"staging": true}`. The craft behind them is
+in `ae-composition`.
+
+| Check | Catches | Threshold |
+|---|---|---|
+| `frame-unused` | small elements floating in a lot of nothing | >45% of the height empty above and below, with nothing over 25% of the frame |
+| `no-focal-point` | nothing big enough to be the subject | largest element under 12% of frame area |
+| `no-scale-contrast` | everything the same size, so nothing leads | largest within 2× of the median, with 3+ elements |
+| `same-staging` | every beat composed identically | all resting compositions centred within 12% of the frame height |
+
+Layers placed by a camera are measured flat for these, and the finding says
+so when that happened.
 
 ### Jitter and chatter
 

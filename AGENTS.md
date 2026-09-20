@@ -30,7 +30,8 @@ agent owns; add a line to the table instead of taking one.
 | ae-templates (Essential Graphics, MOGRT, controls for editors) | Claude (taken over from Codex) | done, new ae_essential_graphics tool, .mogrt export verified |
 | ae-data-driven (charts and versions from CSV/JSON) | Claude (taken over from Codex) | done, CSV/JSON expressions and bar chart rendered in AE |
 | ae-ai-templates + templates/ (AI-native templates, ae_template, ae_welcome) | Claude (mission taken over from Codex) | done, 7 templates built and checked in AE, validated by npm test |
-| ae-motion-proof + ae_proof (proof-read a comp: overlaps, jitter, pops, unreadable text, switches) | Claude | done, 37 checks in mcp/proof.js, tuned against 8 real comps |
+| ae-motion-proof + ae_proof (proof-read a comp: overlaps, jitter, pops, unreadable text, switches) | Claude | done, 41 checks in mcp/proof.js, tuned against real campaign comps |
+| ae-composition (staging: focal point, scale hierarchy, using the frame, varying beats) | Claude | done, with measurable staging checks in ae_proof |
 
 | ae-reusable-library panel + reference scene/transition pack | Codex | in progress; panel/index.html, panel/js/library.js, panel/js/library-core.js, minimal main.js hook |
 

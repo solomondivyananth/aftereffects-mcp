@@ -165,8 +165,9 @@ but by then the code has already run. See [SECURITY.md](SECURITY.md).
 
 **See & show** — `ae_render_frame` · `ae_review_motion` · `ae_goto`
 
-**Proof-read** — `ae_proof` (37 checks: overlaps, clipped edges, jitter,
-pops, off-grid keys, unreadable text, missing motion blur, switches left on)
+**Proof-read** — `ae_proof` (41 checks: overlaps, clipped edges, jitter,
+pops, off-grid keys, unreadable text, missing motion blur, switches left on,
+and staging: no focal point, no scale contrast, an unused frame)
 
 **Animate** — `ae_set_property` · `ae_add_keyframes` · `ae_edit_keyframes` ·
 `ae_set_expression` · `ae_clear_expression` · `ae_apply_effect` ·
@@ -202,7 +203,7 @@ works. `npm test` validates every template in every format.
 
 ### Skills
 
-Eighteen skills ship in `skills/`. **Every MCP client gets them as prompts of
+Nineteen skills ship in `skills/`. **Every MCP client gets them as prompts of
 the same name**, so they work in Claude Desktop, Codex, Cursor and the rest
 with no setup. Claude Code reads skills from a `.claude/skills` folder
 instead — run `npm run skills` in a clone to link them into this repo, or
@@ -224,7 +225,8 @@ instead — run `npm run skills` in a clone to link them into this repo, or
 | `ae-templates` | Controls nulls, Essential Graphics controls, `.mogrt` export, robust templates |
 | `ae-data-driven` | CSV/JSON as footage in expressions, charts, one version per row |
 | `ae-ai-templates` | fill the built-in templates from a brief, and write new ones |
-| `ae-motion-proof` | screen a comp for overlaps, jitter, pops and unreadable text, then verify on frames |
+| `ae-composition` | staging a frame: one dominant element, scale hierarchy, using the whole frame, varying beats |
+| `ae-motion-proof` | screen a comp for overlaps, jitter, pops, unreadable text and under-staged beats |
 | `ae-deliver` | pre-flight, format variants with safe areas, renders, verifying the file |
 | `ae-reference-breakdown` | turn a reference film into a beat map and rebuildable techniques |
 | `video-reference-compare` | frame-by-frame comparison of a render against a reference |

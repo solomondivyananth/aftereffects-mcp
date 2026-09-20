@@ -48,6 +48,11 @@ const CHECKS = [
   { id: 'long-way', group: 'physics', what: 'A rotation takes the long way round between two keys.' },
   { id: 'shear', group: 'physics', what: 'A rotated parent with non-uniform scale shears its children.' },
   { id: 'upscaled', group: 'physics', what: 'Footage scaled past 100%, or vector art scaled up without continuous rasterization.' },
+  /* --- staging ----------------------------------------------------- */
+  { id: 'frame-unused', group: 'staging', what: 'Everything sits in one band; most of the frame is empty.' },
+  { id: 'no-focal-point', group: 'staging', what: 'Nothing is big enough to be the thing you look at.' },
+  { id: 'no-scale-contrast', group: 'staging', what: 'Every element is the same size, so nothing leads.' },
+  { id: 'same-staging', group: 'staging', what: 'Every beat is composed identically — one layout on repeat.' },
   /* --- integrity --------------------------------------------------- */
   { id: 'expression-error', group: 'integrity', what: 'A broken or disabled expression.' },
   { id: 'missing-footage', group: 'integrity', what: 'Footage the project cannot find.' },
@@ -60,6 +65,7 @@ const CHECKS = [
 
 const GROUPS = {
   space: 'Space and layout',
+  staging: 'Staging and hierarchy',
   jitter: 'Jitter and chatter',
   timing: 'Timing and keyframes',
   physics: 'Motion physics',
@@ -684,6 +690,89 @@ function analyse(d, opts = {}) {
           'A precomp scaled to ' + Math.round(Math.max(s.s[0], s.s[1])) + '% without Collapse Transformations renders soft.',
           'Switch collapse on, or build the precomp at the size it is used.', times[j]);
       }
+    }
+  }
+
+  /* ================= staging =======================================
+     Composition, judged only where it is fair to: a comp with a
+     full-frame background is a scene, and a scene is expected to use its
+     frame. An overlay (a lower third, a caption) has no backdrop and is
+     skipped entirely. These are notes, never errors — they are about
+     design, and design has exceptions. */
+  const backdrop = L.some((l) => l.full && l.vis.some(Boolean));
+  /* Scenes that are composited over a background somewhere else have no
+     backdrop of their own; pass staging:true for those. */
+  const stage = opts.staging === true || (opts.staging !== false && backdrop);
+  const compositions = [];
+  let flatMeasured = false;
+  if (stage && times.length > 2) {
+    for (let j = 0; j < times.length; j++) {
+      /* Composition includes camera-placed layers, measured flat — leaving
+         the hero card out because it is 3D would describe an empty frame
+         that nobody sees. The finding says so. */
+      const live = L.filter((l) => l.content && l.vis[j] && !l.full && l.box[j] &&
+        area(l.box[j]) < 0.85 * W * H);
+      if (live.some((l) => l.approx)) { flatMeasured = true; }
+      if (live.length < 1 || !live.every((l) => restAt(l, j))) { continue; }
+      const areas = live.map((l) => area(l.box[j]) / (W * H)).sort((a, b) => b - a);
+      const top = Math.min(...live.map((l) => l.box[j][1]));
+      const bottom = Math.max(...live.map((l) => l.box[j][1] + l.box[j][3]));
+      const left = Math.min(...live.map((l) => l.box[j][0]));
+      const right = Math.max(...live.map((l) => l.box[j][0] + l.box[j][2]));
+      compositions.push({
+        j, n: live.length,
+        band: (bottom - top) / H,
+        width: (right - left) / W,
+        margins: (top / H) + ((H - bottom) / H),
+        centre: ((top + bottom) / 2) / H,
+        biggest: areas[0],
+        ratio: areas[0] / (areas[Math.floor(areas.length / 2)] || areas[0])
+      });
+    }
+  }
+  if (compositions.length >= 3) {
+    const share = (f) => compositions.filter(f).length / compositions.length;
+    /* Report the typical composition, not the emptiest instant: half way
+       through a build every scene looks bare. */
+    const typical = (f) => {
+      const hits = compositions.filter(f);
+      return hits.sort((a, b) => a.biggest - b.biggest)[Math.floor(hits.length / 2)];
+    };
+    const caveat = flatMeasured
+      ? ' (Layers placed by the camera are measured flat here, so treat this as a prompt to look, not a measurement.)'
+      : '';
+
+    /* Empty space is only a fault when nothing earns it: a big confident
+       element surrounded by air is a composition, a small one is a gap. */
+    if (share((c) => c.margins > 0.45 && c.biggest < 0.25) > 0.6) {
+      const c = typical((x) => x.margins > 0.45 && x.biggest < 0.25);
+      add('frame-unused', 'note', d.comp, at(times[c.j]),
+        Math.round(c.margins * 100) + '% of the frame height is empty above and below the content, and the ' +
+        'largest thing in it covers ' + Math.round(c.biggest * 100) + '% of the frame. Small elements floating in a lot of nothing.' + caveat,
+        'Either fill the frame — scale the hero element up, let something bleed off an edge, add a second layer of information — or compose the emptiness deliberately, with one big element in it.', times[c.j]);
+    }
+    if (share((c) => c.biggest < 0.12) > 0.6) {
+      const c = typical((x) => x.biggest < 0.12);
+      add('no-focal-point', 'note', d.comp, at(times[c.j]),
+        'The largest element at rest covers about ' + Math.round(c.biggest * 100) +
+        '% of the frame. Nothing is big enough to be the thing you look at.' + caveat,
+        'Give each beat one dominant element — 25–60% of the frame — and let everything else support it.', times[c.j]);
+    }
+    const many = compositions.filter((c) => c.n >= 3);
+    if (many.length >= 3 && many.filter((c) => c.ratio < 2).length / many.length > 0.6) {
+      const c = many[0];
+      add('no-scale-contrast', 'note', d.comp, at(times[c.j]),
+        'Every element on screen is within a factor of ' + c.ratio.toFixed(1) +
+        ' of the same size, so nothing leads.' + caveat,
+        'Make the point of the beat 3–6× the size of its supporting elements. Hierarchy is size first, colour second.', times[c.j]);
+    }
+    const centres = compositions.map((c) => c.centre);
+    const spread = Math.max(...centres) - Math.min(...centres);
+    if (compositions.length >= 6 && spread < 0.12) {
+      add('same-staging', 'note', d.comp, span(times[compositions[0].j], times[compositions[compositions.length - 1].j]),
+        'Every resting composition is centred on the same line (within ' + Math.round(spread * 100) +
+        '% of the frame height). The film is one layout repeated.',
+        'Move the eye between beats: high, low, full-bleed, close-up. A cut that changes nothing but the words is a slide, not a shot.', times[compositions[0].j]);
     }
   }
 
