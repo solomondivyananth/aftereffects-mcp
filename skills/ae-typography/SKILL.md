@@ -9,6 +9,31 @@ Almost every text effect is one **text animator**: some properties (Opacity,
 Blur, Position, Scale, Fill Color, Tracking) plus a **selector** that decides
 which characters get them, and how much. Animate the selector, not the text.
 
+## Type that reads, before it moves
+
+Animation cannot rescue type that is set badly. Numbers that hold up at
+delivery size, for a 1080-tall frame (scale them by the frame's short side):
+
+| | Value |
+|---|---|
+| Smallest legible size | ~24 px (2.2% of the short side). `ae_proof` flags anything under it |
+| A title people read in passing | 64–120 px |
+| A full-frame statement | 140–260 px |
+| Line length | 28–45 characters, including spaces |
+| Leading | 1.1–1.25× the size for titles, 1.4× for body |
+| Tracking for ALL CAPS | +40 to +80 |
+| Tracking for large display type | −20 to −40; big type needs tightening |
+
+- **Size from the copy, not from a number you like.** Long copy in a fixed
+  size overflows the frame; `Math.min(base, frameWidth * 0.86 / (chars * 0.55))`
+  keeps any line inside. The templates in `ae-ai-templates` all do this.
+- **Fonts are PostScript names**, and the font must be installed. Look one up
+  with `ae_catalog {"kind": "fonts", "query": "Inter"}` instead of guessing —
+  a name After Effects doesn't have is silently substituted, and the render
+  is wrong in a way no error tells you about.
+- **Two weights beat two families.** Contrast by weight and size; keep one
+  family per piece unless the brand says otherwise.
+
 ## Building an animator
 
 ```json
@@ -45,6 +70,33 @@ Range Selector › Advanced values are numbers:
 | Based On | 1 characters · 2 characters excluding spaces · 3 words · 4 lines |
 | Shape | 1 square · 2 ramp up · 3 ramp down · 4 triangle · 5 round · 6 smooth |
 | Units | 1 percentage · 2 index |
+
+### Driving a selector
+
+Three ways, and they are not interchangeable:
+
+| Drive | What it does | Use when |
+|---|---|---|
+| **Offset** (with Start 0, End 100) | slides the whole range across the text | a reveal in reading order — the common case |
+| **Start** or **End** | grows or shrinks the range from one end | a wipe that stops part way, a highlight that stays |
+| **Amount** on the animator | fades the whole effect in and out at once | a treatment that applies to everything, e.g. a blur pulse |
+
+**After you switch Units to index**, address Start and End by matchName —
+`ADBE Text Index Start` and `ADBE Text Index End`. The percentage versions
+still exist, hidden, and keying them does nothing. This costs an hour if you
+don't know it.
+
+**Shape and Smoothness are the feel.** Shape 1 (square) with Smoothness 0
+gives hard per-character cuts — typewriter, counters, glitch. Shape 2 (ramp
+up) with Smoothness 100 gives the soft premium wash. Shape 5 (round) reads as
+a bulge travelling through the word. Ease High and Ease Low bias the range's
+edges: Ease High 100 makes characters linger at full effect, Ease Low 100
+makes them leave slowly.
+
+**Stacked animators are applied in order, and they add.** Two animators each
+moving Position by 20 px move the character 40. Name them for what they do
+("In", "Shimmer", "Exit"), because every later tool call finds them by name,
+and an unnamed third "Animator 3" is how the wrong property gets keyed.
 
 ## Recipes
 
@@ -149,6 +201,36 @@ with Depth of Field on, and dolly it forward through the cloud. Words sharpen
 as they cross the focus distance. The camera rig, focus and depth are in
 `ae-camera-3d`.
 
+## Text boxes, and text that changes
+
+- **Point text grows from its anchor; box text wraps inside a fixed
+  rectangle.** Box text is what to use for anything data-driven or
+  client-editable, because it wraps instead of running off the frame. Its
+  cost: text that doesn't fit is simply not drawn, with no warning.
+  `ae_proof`'s `text-overflow` catches both cases.
+- Justification changes what the anchor means. For centred type, centre the
+  anchor too, or every size change drifts sideways.
+- **Source Text keyframes are holds.** Keying the words themselves snaps from
+  one string to the next — there is no interpolation. That is what you want
+  for counters and label changes; for a crossfade between two sentences, use
+  two layers.
+- Numbers that count up belong in an expression on Source Text, not in
+  twenty keyframes. Wrap them so the digits don't jitter: pad to a fixed
+  width, and prefer a monospaced (tabular) figure style, or the line reflows
+  on every frame and shimmers.
+
+## When it looks wrong
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The animator does nothing | the range covers nothing, or Amount is 0 | check Start/End (and index-units matchNames above) |
+| Characters jitter or shimmer | animated Tracking reflows the line every frame | animate Position or Scale instead, or accept it and add a little blur |
+| The whole line moves as one | Based On is words or lines, or there is no selector | set Based On 1, add a Range Selector |
+| The reveal feels mechanical | Shape 1 with Smoothness 0, or a linear Offset | Shape 2, Smoothness 80–100, landing ease 70–85 |
+| Blur makes the type mushy | Blur is in pixels and small type has little to lose | blur 8–14 on display type only, and settle it to 0 well before the hold |
+| The fill colour ignores your gradient | a Fill Color animator overrides the matte trick | remove Fill Color from the animator, or drive the ramp instead |
+| Text reads for a moment then goes | the hold is shorter than the copy | ~3 words a second; `ae_proof`'s `read-time` gives the number |
+
 ## Taste
 
 - One idea per line. Let a line hold long enough to read (about 3 words a
@@ -160,5 +242,12 @@ as they cross the focus distance. The camera rig, focus and depth are in
 ## Check it
 
 Text animation is judged in motion. `ae_review_motion` over each line's
-entrance, and `ae_render_frame` at the moment each line is fully readable.
-Read the words back with `ae_text` to catch typos before a render.
+entrance, and `ae_render_frame` at the moment each line is fully readable —
+at `downscale: 1` if you are judging legibility, because a shrunken contact
+sheet flatters small type.
+
+Then `ae_proof` on the comp (`ae-motion-proof`): it screens type for
+`text-small`, `text-overflow`, `read-time` (on screen for less time than it
+takes to read) and `text-copy` (double spaces, straight quotes, "..." where
+an ellipsis belongs). Read the words back with `ae_text` to catch typos —
+nothing else in the toolchain will.

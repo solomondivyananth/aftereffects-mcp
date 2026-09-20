@@ -26,6 +26,44 @@ movement carries across), or a cut on a match (same shape or position in both
 shots) needs no effect at all. Before adding one, ask whether a clean cut on
 the marker is better.
 
+## Choosing one
+
+Pick from what the two shots have in common, not from a menu of effects:
+
+| A and B are… | Use | Why |
+|---|---|---|
+| the same subject, moved or changed | a match cut, or a morph (`ae-morph`) | the shared shape does the work; an effect would hide it |
+| different moments of one idea | a cut on the beat | the cheapest and the strongest |
+| different places, same energy | whip pan or zoom punch | motion carries the eye across the join |
+| different sections of a film | a shape or colour wipe in the brand colour | it reads as a chapter mark, not a glitch |
+| a build that must not lose its place | a masked reveal that grows from the element the eye is on | the frame never goes blank |
+| a hard change of tone | dip to colour, or a flash cut | a deliberate blink |
+| beauty shots, slow content | a crossfade or a light wipe | anything faster fights the pace |
+
+Two rules that save most transitions:
+
+- **Keep the direction.** If A leaves to the left, B arrives from the right.
+  Reversing direction across a cut reads as a mistake even when nobody can
+  say why.
+- **One transition style per piece**, twice at most. A film that wipes, then
+  whips, then iris-wipes looks like a demo of transitions.
+
+## The shape of a transition in time
+
+A transition is not a linear crossing. Give it the same acceleration as a
+move: leave fast, arrive soft.
+
+| Type | Overlap | Where the cut sits | Easing |
+|---|---|---|---|
+| Whip pan / zoom punch | 6–10 frames | at the fastest frame, where the blur is heaviest | A `{out: 85}`, B `{in: 85}` |
+| Shape or mask wipe | 8–12 frames | the middle of the wipe | `{out: 20}` → `{in: 85}` |
+| Effect wipe (Completion 0→100) | 8–12 frames | at ~50% completion | same |
+| Dip / flash | 2–6 frames | on the beat | hold keys, no ease |
+| Crossfade | 12–20 frames | the midpoint | linear, or the fade spends too long half-there |
+
+Put the marker on the beat first, then build outwards from it, so the loudest
+frame of the transition and the beat are the same frame.
+
 ## Whip pan and zoom punch
 
 The energetic ones, built from motion plus blur:
@@ -89,6 +127,17 @@ ae_add_keyframes {"layer": "Shot A", "path": ["Effects","Linear Wipe","Transitio
   {"time": "0f", "value": 0, "ease": {"out": 20}}, {"time": "10f", "value": 100, "ease": {"in": 85}}]}
 ```
 
+**Master controls (After Effects 2026).** This generation ships prebuilt
+transition rigs as effects — `ADBE CM TransComplete` (Transition Master
+Control), plus `ADBE CM TransWipe`, `TransSlide`, `TransCard`, `TransIris`,
+`TransRadial`, `TransDissolve`, `TransFade`, `TransFadeMask`, `TransStretch`,
+`TransCorner`, `TransDirection`. They wrap the work below behind one set of
+dials. Apply with `ae_apply_effect` and read the parameter names back from
+the result; list what this install has with
+`ae_catalog {"kind": "effects", "query": "master control"}`. Hand-built is
+still better when the transition has to carry brand shapes or a specific
+element across the cut.
+
 **Luma transitions:** a Gradient Wipe driven by a hidden layer (Fractal
 Noise, a gradient ramp `ADBE Ramp`, or a texture) gives organic, ink-like
 wipes. Set Gradient Layer to that layer and turn its visibility off
@@ -99,12 +148,54 @@ point at other layers. If `ae_apply_effect` can't set them from a name, set
 them with `ae_run_jsx` (`prop.setValue(layerIndex)`), or ask the user to pick
 the layer in the Effect Controls.
 
+## Transitions that use depth
+
+With a camera in the comp (`ae-camera-3d`), the change of shot can be a move
+rather than an effect:
+
+- **Push through.** A is a 3D layer; dolly the camera past it while B sits
+  further back. Add a little motion blur and the frame edge does the wiping.
+- **Rotate the world.** Parent A and B to a null at 90° to each other and
+  rotate the null — a card flip at full-frame scale.
+- **Z stack.** Lay the scenes out in depth at build time and fly forward
+  through all of them; every "transition" is then one continuous camera move.
+
+These only work if both shots are built as precomps with matching size, and
+if the camera move eases (20–30 frames, landing ease 85–90).
+
+## Carrying an element across
+
+The strongest scene change is one where nothing cuts: an element survives
+into the next shot and becomes part of it — a logo that becomes the app
+header, a word that turns into a chip, a line that becomes a ring. Build it
+as one layer that exists in both scenes, and change only what has to change
+(scale, position, colour) over 4–8 frames. `ae-ui-motion` has the worked
+versions; `ae-morph` has the ones where the shape itself changes.
+
+## Sound
+
+Most transitions are sold by audio, not picture. A whoosh that starts 4–6
+frames *before* the cut and an impact exactly on it will make a plain cut
+feel designed. Place them against the same markers (`ae-audio-sync`).
+
 ## Crossfades and dips
 
 - **Crossfade:** B's Opacity 0 → 100 over the overlap. Use it rarely; it
   reads as soft and old-fashioned unless it's intentional.
 - **Dip to colour:** a solid above both, Opacity 0 → 100 → 0 around the cut.
 - **Flash cut:** a white solid on 1–2 frames with hold keys (`interp: "hold"`) exactly on the cut.
+
+## When it goes wrong
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| A frame of white or transparency mid-transition | A ends before B starts | extend the overlap; `ae_proof` reports it as `empty-frame` |
+| A hard line where the wipe starts | no feather, or the mask begins inside the frame | feather 20–60, and start the mask fully outside |
+| The frame edge shows during a whip | the layer is exactly comp-sized | `ADBE Tile` (Motion Tile) with Mirror Edges, or scale to 110% |
+| It strobes | fast motion with motion blur off | both switches on; `ae_proof`'s `strobe` check finds these |
+| The transition feels late | it was built from the cut, not from the beat | move the loudest frame onto the marker |
+| It reads as long and soft | 20+ frames, linear easing | halve it and ease it |
+| Every cut has a transition | no cuts at all | most of them should be cuts |
 
 ## Check it
 
@@ -114,7 +205,12 @@ Transitions live in a few frames, so look at every one:
 ae_review_motion {"start": "<cut time minus 6f>", "duration": "12f", "frames": 12}
 ```
 
+Sample about two frames per frame of transition — at 8 samples across 10
+frames you are not seeing the transition, you are seeing a slideshow of it.
+
 Look for: a frame where neither shot shows, a mask edge visible at the start,
 a hard edge where there should be feather, and whether the transition lands
-on the beat. With a reference, compare it at native frame rate with the
+on the beat. Then `ae_proof` over the same window with a high `samples` count
+(`ae-motion-proof`) — that is where one-frame pops and empty frames show up
+as numbers. With a reference, compare it at native frame rate with the
 `video-reference-compare` skill.

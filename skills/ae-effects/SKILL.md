@@ -20,6 +20,39 @@ Order matters. Effects render top to bottom, so a glow after a blur glows the
 blurred result. Reorder with `ae_property_meta {"path": ["Effects","Glow"], "index": 1}`.
 Toggle one off (the fx switch) with `"enabled": false`.
 
+A stack that behaves, most of the time:
+
+| Order | Why |
+|---|---|
+| 1. Keying and matte work | everything after it should see the final alpha |
+| 2. Distortion (displace, warp, lens) | it moves pixels; later effects should see where they ended up |
+| 3. Stylize (posterize, find edges, mosaic) | on the distorted image, not the clean one |
+| 4. Blur | blurs the result, which is almost always what you meant |
+| 5. Glow and light | glows the blurred, stylized image — this is what makes light look real |
+| 6. Grade (Lumetri, Curves, Tint) | last, so it grades everything above it |
+| 7. Grain and vignette | on top of the grade, like a camera |
+
+## Where the effect goes
+
+The same effect gives three different results depending on what you put it
+on. This decides more about the look than the parameters do.
+
+| Put it on | When | Watch out |
+|---|---|---|
+| The layer | the effect belongs to that element alone | effects are clipped to the layer's own bounds |
+| An adjustment layer | one treatment over everything below (grade, blur, glow, grain) | it affects every layer under it in that comp, including things you forgot |
+| A precomp | the effect must see several layers as one image, or you need the result blurred *together* | a precomp resets 3D space and collapses nothing unless you switch Collapse Transformations on |
+
+Two bounds traps, both of which look like the effect is broken:
+
+- **Effects on a shape or text layer are clipped to that layer's own
+  bounds.** A blurred blob drawn with `ae_shape` gets a hard straight edge
+  where the shape's box ends. Put the blur on an adjustment layer above the
+  shapes instead — the soft-gradient recipe in `ae-ui-motion` relies on this.
+- **An effect that grows the image** (glow, blur, drop shadow, displace) is
+  cut off at the layer's edge. Add `ADBE GROW BOUNDS` (Grow Bounds) *before*
+  it in the stack, or precompose with "move all attributes".
+
 ## Glow, light, energy
 
 | Effect | matchName | Key parameters |
@@ -52,6 +85,28 @@ Animate noise with an expression, not keyframes. On
 `["Effects","Fractal Noise","Evolution"]`: `time * 90`. For a heat haze, put
 Turbulent Displace (Amount 5–10, Size 40–80) on an adjustment layer and
 animate its Evolution the same way.
+
+## Presets and behaviours (After Effects 2026)
+
+AE 2026 ships two families of ready-made effects that save building things by
+hand. Both are real effects, so `ae_apply_effect` applies them and returns
+their parameters — read the names back from that call rather than guessing
+them, because they differ from the hand-built equivalents.
+
+| Family | matchName prefix | What is in it |
+|---|---|---|
+| Motion presets | `ADBE CM …` | Light Leaks, Mood Lighting (amorphous, digital, streaks), Inset Video (framed, torn edges), Cracked Tiles, Autoscroll, Drift Over Time, Fade In+Out, Rotate Over Time, Scale Bounce, the Wiggle family, and a set of transition master controls |
+| Dynamic behaviours | `ADBE DE …` | Bounce, Wobble Bounce, Pulse, Oscillate, Pendulum, Jiggle, Swarm, Follow, Orbit, Z Spring, Random Motion/Rotation/Scale/Opacity — most with `At Marker`, `On Beat` and `Random` variants |
+
+The behaviours are motion, not looks: they belong to `ae-motion-principles`.
+The motion presets are looks — `ADBE CM LightLeaksMarkers` on an adjustment
+layer gives per-marker light leaks in one call, where the hand-built version
+is three layers and a blend mode. List what this install has with
+`ae_catalog {"kind": "effects", "query": "light leaks"}`.
+
+Also new in this generation: `ADBE Curl Noise` (Curl Noise), a flowing noise
+field that suits smoke, ink and fluid-looking drift better than Fractal
+Noise's boiling.
 
 ## Particles and simulation
 
@@ -133,8 +188,47 @@ Moving layers without motion blur look like stop-motion.
 Motion blur multiplies render time. Leave it on for final renders, and use
 `downscale` for previews.
 
+## Exposing an effect for a person to drive
+
+When a person or a template needs a dial, add an Expression Control to a
+Controls null and point the effect's parameter at it. The controls are
+effects themselves:
+
+| Control | matchName |
+|---|---|
+| Slider | `ADBE Slider Control` |
+| Colour | `ADBE Color Control` |
+| Checkbox | `ADBE Checkbox Control` |
+| Dropdown Menu | `ADBE Dropdown Control` |
+| Angle · Point · 3D Point · Layer | `ADBE Angle Control` · `ADBE Point Control` · `ADBE Point3D Control` · `ADBE Layer Control` |
+
+Then the effect reads it:
+`thisComp.layer("Controls").effect("Glow Strength")("Slider")`. That single
+slider can drive both glows in the stack, so one dial changes the whole look
+(`ae-templates` for putting it in Essential Graphics).
+
+## When it looks wrong
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The glow is a grey haze | the threshold is too low, so mid-tones glow | raise Glow Threshold to 50–70; glow only the bright core |
+| A full-frame blur fades at the edges | the blur samples empty space outside the layer | Repeat Edge Pixels on, or Grow Bounds before it |
+| The effect stops at a straight edge | it is on a shape or text layer, clipped to its bounds | move it to an adjustment layer, or Grow Bounds |
+| Gradients show bands | 8 bits per channel is not enough for a smooth ramp | set the project to 16 bpc, or add `ADBE Noise2` at 1–2% over the gradient |
+| Particles vanish at the frame edge | the producer is inside the frame and the layer is the frame | enlarge the layer, or use a comp-sized solid and Grow Bounds |
+| The chromatic split looks muddy | the copies are blending normally | set them to `add`, and keep the offset under about 6 px |
+| A "3D" effect ignores the camera | most effects are 2D and render after the transform | use a real 3D layer or the Advanced 3D renderer (`ae-camera-3d`) |
+| Everything renders slowly | Camera Lens Blur, particles, high Complexity noise, motion blur | preview with `ae_render_frame {"downscale": 4}`, raise quality last |
+
 ## Always look
 
 Effects are judged by eye. After each one, `ae_render_frame` at a
-representative moment. For anything animated (noise, particles, blur),
-`ae_review_motion`. Report the look, not the parameter values.
+representative moment — and at `downscale: 1` for anything whose point is
+detail, because a contact sheet hides grain, banding and soft edges. For
+anything animated (noise, particles, blur), `ae_review_motion`. Report the
+look, not the parameter values.
+
+`ae_proof` will not judge a look, but it does catch what effects tend to
+break around them: layers moving fast enough to strobe with motion blur off,
+footage pushed past 100%, an effect switched off and forgotten
+(`ae-motion-proof`).
