@@ -14,6 +14,20 @@ ae_create_layer {"kind": "adjustment", "options": {"name": "Grade"}}
 ae_apply_effect {"layer": "Grade", "effect": "ADBE Lumetri"}
 ```
 
+## Before you grade: bit depth and space
+
+- **8 bits per channel is not enough to grade.** Push contrast or a gradient
+  in 8-bit and you get banding that no later fix removes. Set the project to
+  16 bpc for anything with soft gradients, glows or heavy grading; 32 bpc
+  (linear) when you are compositing light — glows and blurs behave correctly
+  over bright areas — at real cost in speed.
+- Keep one working space across the piece, and do not change it halfway.
+  A master graded in one space and delivered in another shifts, most visibly
+  in skin and brand colours.
+- **Log or raw footage** needs its input transform or input LUT applied
+  first, in Lumetri, before any creative grading. Grading log directly gives
+  the washed-out look people then try to fix with contrast.
+
 ## Lumetri Color
 
 Its controls are addressed directly under the effect. The first control with
@@ -92,6 +106,42 @@ ae_apply_effect {"layer": "Grade", "effect": "ADBE Tint",
 | Selective colour | `ADBE SelectiveColor` | Colors (the range), then Cyan, Magenta, Yellow, Black |
 | Hue shift or colourize | `ADBE HUE SATURATION` | Master Hue, Master Saturation, Master Lightness, Colorize |
 
+## Building a palette
+
+Most motion-design work is not footage; it is colour you choose. A palette
+that survives contact with a real brief:
+
+- **One accent, one neutral, one background.** Roughly 60% background, 30%
+  neutral or secondary, 10% accent. The accent is for the thing you want
+  looked at, and nothing else.
+- **Saturation scales down with area.** A saturated accent on a chip is
+  lively; the same colour across the full frame is loud. Drop saturation as
+  the area grows.
+- **Text carries the contrast, not the colour.** Body and caption text want
+  a contrast ratio of at least 4.5:1 against what is behind it, and large
+  display type at least 3:1. Sample the rendered frame rather than trusting
+  the swatches — a gradient background fails the ratio in places the flat
+  colour passed.
+- **Gradients want three stops, not two.** Interpolating straight from one
+  hue to another runs through grey; adding a third stop that bends through a
+  neighbouring hue (blue → violet → magenta rather than blue → magenta)
+  keeps it rich. Banding is fixed with 16 bpc and 1–2% noise
+  (`ae-effects`), not by fiddling with the stops.
+- **Dark and light themes are not inverses.** A dark theme needs its
+  brightest accent dimmed and its text lifted off pure white; a light theme
+  needs shadows to have hue rather than grey.
+
+## Colour that changes over time
+
+- A colour change reads slower than a move. Give it at least 6–8 frames, and
+  hold the new colour long enough to be seen as a state, not a flicker.
+- Drive every element's colour from one Colour Control on a Controls null
+  (`ae-templates`), so a theme change is one value, not forty edits.
+- Cross-fading two saturated hues passes through mud. Fade through the
+  neutral, or change luminance first and hue second.
+- Pure saturated red and blue at small sizes fringe badly after H.264
+  compression. Keep body text near neutral.
+
 ## Matching shots
 
 1. Pick the **hero shot** and grade it first.
@@ -118,9 +168,22 @@ as colour controls that every element reads (see `ae-templates`).
   `ADBE OCIO Display Transform`) are for colour-managed pipelines. Only use
   them when the project uses OCIO, and ask first.
 
+## When it looks wrong
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Bands across a sky or a gradient | 8 bpc, or a low bitrate | 16 bpc, 1–2% noise, and a higher-bitrate output template (`ae-deliver`) |
+| Washed out and flat | log footage without its input transform | apply the input LUT first, then grade |
+| Skin looks green or plastic | Saturation raised instead of Vibrance, or a tint pushed too far | Vibrance, and check faces against a reference frame |
+| The grade looks right in the viewer, wrong in the file | a working-space or bit-depth mismatch | render a frame and compare it with `ae_render_frame` of the same time |
+| Text disappears over footage | contrast fails where the background is bright | a scrim behind the text, or a darkened gradient, not a bolder font |
+| Brand colours are not the brand's | hex converted through the wrong space, or a grade sitting over the graphics | keep graphics above the grading adjustment layer |
+
 ## Check it
 
-Colour can't be judged from numbers. After each change, `ae_render_frame` at
+Colour cannot be judged from numbers, and `ae_proof` deliberately does not
+try: it screens geometry and timing, never colour, contrast or banding
+(`ae-motion-proof`). That part is yours to look at. After each change, `ae_render_frame` at
 full resolution (`downscale: 1`) at 2–3 moments, including the brightest and
 darkest shots, and describe what you see: "whites now neutral, shadows
 slightly blue, skin natural". Before and after: toggle the Grade layer with

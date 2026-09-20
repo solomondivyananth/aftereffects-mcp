@@ -40,6 +40,29 @@ Made a mistake? `ae_undo`. It walks Edit ▸ Undo, so it also undoes the user's
 own hand edits if they came after yours — check `ae_selection` first if they
 might have been working.
 
+## Which skill for the job
+
+This skill covers the tools. The craft lives next door, and the fastest way
+to a good result is to open the right one before starting:
+
+| The ask | Skill |
+|---|---|
+| "animate this", "make it feel better", timing and easing notes | `ae-motion-principles` |
+| titles, kinetic type, text that reveals | `ae-typography` |
+| a look: glow, glitch, smoke, particles, blur | `ae-effects` |
+| scene changes, wipes, whips, match cuts | `ae-transitions` |
+| one shape becoming another | `ae-morph` |
+| depth, parallax, a camera move, lights, extrusion | `ae-camera-3d` |
+| grade, LUT, brand colours, matching shots | `ae-color` |
+| cut to music, beats, pulses, voice-over | `ae-audio-sync` |
+| charts, counters, a version per spreadsheet row | `ae-data-driven` |
+| an app or product-launch film, UI in motion | `ae-ui-motion` |
+| a template an editor can edit, a .mogrt | `ae-templates` |
+| a finished design filled from a brief, fast | `ae-ai-templates` |
+| procedural motion, controls, marker-driven hits | `ae-expressions` |
+| "how was this made", matching a reference reel | `ae-reference-breakdown`, `video-reference-compare` |
+| check it before it goes out | `ae-motion-proof`, then `ae-deliver` |
+
 ## Reading traps
 
 - **Transform is not where animation lives.** Text animators, trim paths,
@@ -101,6 +124,35 @@ name? `ae_catalog` looks it up.
   project first); poll `ae_render_status`, stop with `ae_render_cancel`. Jobs
   survive a panel reload. `ae_render_queue` drives the Render Queue panel and
   Media Encoder (`queue_in_ame`); its `render` action blocks the app.
+
+## Working economically
+
+Every call is a round trip through the panel into After Effects. The
+difference between a fast session and a slow one is almost entirely call
+count:
+
+- **Read widely, then edit narrowly.** One `ae_comp_tree` beats ten
+  `ae_layer_detail` calls; `ae_layer_detail` with a `path` beats reading a
+  whole layer.
+- **Use `layers` instead of looping.** One call with `"layers": "all"` or a
+  name regex is one undo step and one round trip.
+- **`ae_batch` for anything that belongs together.** It is atomic — a
+  failure rolls the whole thing back — so the project never ends up half
+  edited. Build every generated design this way.
+- **Render once, look at many moments.** `ae_render_frame` with `frames` or
+  `times` returns a contact sheet; a loop of single frames does not.
+- **Don't re-read what you just wrote.** Write tools return before/after
+  values; trust them, and look at pixels instead.
+
+## Reporting what happened
+
+- Say what you *saw* in the render, not what you keyed. "It lands on frame
+  14 and settles by 19" is a report; "added an ease" is not.
+- Name what you changed, in the user's terms: layer names, times, values.
+- Say what you did not check. A contact sheet is not playback; a proof is
+  not taste.
+- When something is a judgement call — how snappy, which colour, how much
+  overshoot — show a frame and ask, rather than applying it to fifty layers.
 
 ## When a write is refused
 

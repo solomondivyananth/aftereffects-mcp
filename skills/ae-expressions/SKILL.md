@@ -19,6 +19,39 @@ ae_set_expression {"layers": {"match": "^Dot"}, "path": ["Transform","Position"]
 Before writing one, check what's already there: `ae_find_animation` lists
 every expression, with an `expressionError` field on any that's broken.
 
+## What you can and cannot say
+
+An expression is JavaScript with an After Effects library attached, and the
+last statement is the value. It is **not** ExtendScript: `app`, `File`,
+`alert`, `$` and anything that edits the project do not exist here. It is
+also not a script that runs once — it runs on **every frame, for every
+property that has one**.
+
+| Available | For |
+|---|---|
+| `time`, `value`, `index`, `numKeys`, `thisLayer`, `thisComp` | where and when you are |
+| `key(n)`, `nearestKey(t)`, `valueAtTime(t)`, `velocityAtTime(t)` | reading keyframes, your own or another layer's |
+| `thisComp.marker`, `thisLayer.marker` | beats and triggers |
+| `wiggle`, `random`, `gaussRandom`, `seedRandom`, `noise` | procedural motion |
+| `linear`, `ease`, `easeIn`, `easeOut`, `clamp` | remapping ranges |
+| `length`, `lookAt`, `toComp`, `fromComp`, `toWorld` | geometry between spaces |
+| `sourceRectAtTime(t, false)` | a text or shape layer's real size |
+| `footage("data.csv")` | data files (`ae-data-driven`) |
+| `timeToTimecode`, `text.sourceText.style` | text |
+| `posterizeTime(n)` | stepping, and speed |
+
+**Return what the property expects**, or you get a type error: Position is
+`[x, y]` or `[x, y, z]` depending on the layer's 3D switch, Scale is always
+an array, Opacity and Rotation are single numbers, a colour is
+`[r, g, b, a]` with each channel **0–1** (not 0–255), and Source Text is a
+string.
+
+**Engine.** Since After Effects 16 the default engine is JavaScript, where
+modern syntax (`let`, `const`, arrow functions, template strings) works. A
+project switched to Legacy ExtendScript takes none of that — if an
+expression that is plainly valid is rejected, check which engine the project
+is on and fall back to `var`.
+
 ## Controls first
 
 Expressions are only as good as the knobs that drive them. Put controls on one
@@ -88,6 +121,21 @@ var leader = thisComp.layer(index - 1);
 leader.transform.position.valueAtTime(time - 4 * thisComp.frameDuration)
 ```
 
+**A different seed per layer** — the fix for twenty layers wiggling in
+perfect unison:
+```js
+seedRandom(index, true);
+wiggle(1.5, 20)
+```
+
+**A cascade without keyframes**, each layer delayed by its position in the
+stack:
+```js
+var first = thisComp.layer("Card 1").index;
+var delay = (index - first) * 3 * thisComp.frameDuration;
+thisComp.layer("Card 1").transform.position.valueAtTime(time - delay)
+```
+
 ## Driven by markers
 
 Hits that line up with the beat. Put comp markers on the beats
@@ -148,6 +196,26 @@ var s = thisComp.layer("Controls").effect("Speed")("Slider");
 text.sourceText.style.setText("Speed " + s.value.toFixed(1) + "x")
 ```
 
+## Sizing from content
+
+`sourceRectAtTime` is what makes a layout survive text it has never seen.
+On a background shape's Size, so the pill always fits the words:
+```js
+var t = thisComp.layer("Name");
+var r = t.sourceRectAtTime(time, false);
+[r.width + 80, r.height + 40]
+```
+
+And on the same shape's Position, to stay centred on that text:
+```js
+var t = thisComp.layer("Name");
+var r = t.sourceRectAtTime(time, false);
+t.toComp([r.left + r.width / 2, r.top + r.height / 2])
+```
+
+Call it once and keep the result in a variable — each call re-measures the
+layer, and measuring text is the most expensive thing in this skill.
+
 ## Remapping values
 
 `linear` and `ease` map one range onto another, clamped at both ends:
@@ -175,12 +243,38 @@ exactly on the end of a growing line (pair it with Trim Paths End).
 
 ## When an expression errors
 
-- The error from `ae_set_expression` names the line. The usual causes: a
-  layer or effect name that doesn't exist (check with `ae_comp_tree`), a
-  dimension mismatch (Position is 2D or 3D, Scale always returns 2+ values),
-  or a legacy ExtendScript-only construct.
-- `ae_find_animation` reports `expressionError` for expressions that broke
-  later, for example after a layer was renamed.
+`ae_set_expression` validates on the way in: a broken expression is rejected
+with its error and nothing is left attached. `ae_find_animation` catches the
+other kind — expressions that were fine when written and broke later, when a
+layer was renamed or deleted.
+
+| Error says | Usually |
+|---|---|
+| "…is not defined" | a typo, or an ExtendScript-only name (`app`, `File`) |
+| "Cannot read property … of undefined" | a layer, effect or property name that does not exist — check with `ae_comp_tree` |
+| "expected 2 dimensions, got 3" (or the reverse) | the layer's 3D switch changed what Position wants |
+| "class 'Number' has no method" | you returned a number where an array belongs, e.g. Scale |
+| Nothing errors, but the value is frozen | the expression threw at *some* times only; check several times, not one |
+
+**Debugging through the bridge**, in order:
+
+1. `ae_layer_detail` on the property — it returns the expression and any
+   error, plus the value.
+2. Read the value at several times. An expression that is right at 0s and
+   wrong at 3s is usually a marker or keyframe lookup with no guard for
+   "there is nothing before me".
+3. When the maths is the mystery, put a temporary Source Text expression on
+   a text layer that prints the number you are chasing, and
+   `ae_render_frame`. Seeing the value on screen beats reasoning about it.
+4. Simplify until it works, then build back up. Half a broken expression
+   that compiles tells you which half.
+
+## Reading the numbers back
+
+An expression produces no keyframes, so `ae_find_animation` shows it as an
+expression, not as animation, and `ae_proof` has nothing to measure on that
+property. Say so when reporting: "driven by an expression, so there are no
+keys to check". If the motion has to be inspected or handed over, bake it.
 
 ## Baking and performance
 
@@ -193,3 +287,13 @@ exactly on the end of a growing line (pair it with Trim Paths End).
   and makes heavy expressions cheaper.
 - Avoid `sampleImage` and long `valueAtTime` loops across many layers. They
   run on every frame of every layer.
+- **Cache in variables.** `thisComp.layer("Controls")` written four times is
+  four lookups per frame; once, into a `var`, is one.
+- **Expressions between comps** (`comp("Other").layer(…)`) work but are
+  fragile: they break in a .mogrt, in Collect Files, and whenever someone
+  renames the other comp. Keep references inside the comp
+  (`ae-templates`).
+- Rough order of cost, cheapest first: arithmetic on `value` → `wiggle` and
+  `random` → reading another property → `valueAtTime` → `sourceRectAtTime` →
+  `sampleImage`. Twenty layers each doing the last two is a comp nobody can
+  scrub.

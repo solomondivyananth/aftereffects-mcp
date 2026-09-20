@@ -28,6 +28,41 @@ A pale, slowly drifting colour field behind everything, instead of white:
 
 Keep blob saturation low. The UI and the words carry the colour.
 
+## Rebuild, or record?
+
+| Route | When | Cost |
+|---|---|---|
+| Rebuild as layers | the product is the story, the UI must move in depth, or the feature does not exist yet | hours, but every element can be animated separately |
+| Screen recording, cleaned up | the real interaction is the point, or the UI is too complex to fake | fast, but it is flat: you can push in and mask, not move parts |
+| A hybrid | most launch films: a recording inside a rebuilt frame, with two or three rebuilt elements floating in front | the usual answer |
+
+Cleaning up a recording: crop to the content, hide the real cursor and
+animate a drawn one, cut the dead time between actions (nobody wants real
+loading), and freeze on the state that matters for a beat longer than it
+really lasted. Say in the film's small print when timings are shortened.
+
+## The kit, with numbers
+
+A UI that reads as designed rather than assembled, for a 1080p frame:
+
+| Element | Value |
+|---|---|
+| Spacing | a 4 px grid; 8, 16, 24, 32 for real gaps |
+| Corner radius | 8 for chips, 12–16 for cards, 24–40 for a window frame |
+| Panel width | 60–75% of frame width, so the background still reads |
+| Stroke | 1–2 px, in a light brand gradient — the "rim light" |
+| Shadow | two: an ambient one (opacity 8–12%, softness 80–120, distance 0) and a key one (opacity 12–18%, softness 40–60, distance 20–40) |
+| Body text in-frame | at least 24 px, ideally 28–32 |
+| Accent | one per screen |
+
+Two shadows instead of one is most of the difference between "3D card" and
+"drop shadow from 2009".
+
+**Keep strokes on whole pixels.** A 1 px stroke on a layer sitting at a
+fractional position shimmers as it drifts; `ae_proof` reports it as
+`sub-pixel`. Either hold the panel still on whole pixels, or move it fast
+enough to hide it.
+
 ## Rebuild the UI as layers
 
 Rebuild screens instead of importing a screenshot, or at least split a
@@ -60,6 +95,40 @@ separately and move in depth.
 - **Focus by depth.** When one card matters, bring it forward in Z and let the
   others fall back with camera depth of field. Don't highlight it with
   colour.
+
+## Cursors, clicks and scrolls
+
+Nothing gives away a fake UI faster than a cursor that moves like a robot.
+
+- **Move**: 8–14 frames, ease out of rest and into the target
+  (`{out: 20}` / `{in: 85}`), on a slight arc — never a straight line.
+- **Click**: the cursor dips 2 px, the target scales 100 → 96 → 100 over 6
+  frames, and a soft ripple (a circle, opacity 30 → 0, scale 0 → 180%)
+  expands from the click point over 10 frames.
+- **Hover** before the click: the target lifts 2 px and its shadow grows,
+  3 frames before the cursor arrives.
+- **Scroll**: content moves with momentum — fast start, long decay
+  (`{out: 10}` / `{in: 90}`) — and over-scrolls 12–20 px at the end of a
+  list before settling back.
+- **Type**: characters appear at 40–60 a second, not instantly, with the
+  caret blinking at 2 Hz (`ae-typography`).
+
+Every one of these should be 20–30% faster than real life. Real interaction
+timings feel sluggish on screen.
+
+## States the product really has
+
+- **Loading**: a skeleton (grey blocks at 8–12% opacity) with a shimmer
+  sweeping across every 1.2–1.8s, not a spinner. Spinners say "waiting";
+  skeletons say "arriving".
+- **Empty**: worth showing for half a beat before content lands, so the
+  content landing means something.
+- **Progress**: a bar that eases and never quite reaches the end until the
+  result appears.
+- **Success**: a check that draws (Trim Paths, 8–10 frames) with a single
+  soft pulse behind it. One beat, then move on.
+- **Numbers in the UI**: plausible, consistent between screens, and counted
+  up rather than cut (`ae-data-driven`).
 
 ## Text that feels generated
 
@@ -142,10 +211,30 @@ To mark a higher tier, the world turns dark:
   states it would really show. Disclaimers such as "sequences shortened and
   simulated" belong in small type when a demo is idealised.
 
+## When it looks fake
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The UI looks pasted on | no shadow, or one hard shadow, and no rim light | two soft shadows plus a 1–2 px gradient stroke |
+| The panel slices through its parent | a 3D child parented to a tilted 3D parent | parent while 2D, then set `threeDLayer` |
+| The gradient background has hard edges | the blur is on the shape layers | one adjustment layer above them |
+| Everything moves at once | no stagger | 3–4 frames between elements; one idea per beat |
+| Text is unreadable on a phone | UI type sized for a desktop viewer | 28 px minimum in frame; `ae_proof` `text-small` |
+| The cursor looks mechanical | linear move, no hover, no click feedback | arc, ease, dip, ripple |
+| The tilt looks like a mistake | a static tilted device | keep tilted things drifting slowly |
+| It feels like a demo of transitions | a different move per scene | one continuity device, used throughout |
+
 ## Check it
 
 `ae_review_motion` over every scene change, because continuity lives or dies
-on 6 frames. `ae_render_frame` on each resting UI state, to check that text
-is legible at the delivery size. With a reference film, compare it beat by
-beat with `video-reference-compare`, and use `ae-reference-breakdown` to
-extract its timing first.
+on 6 frames. `ae_render_frame` on each resting UI state at `downscale: 1`,
+to check that text is legible at the delivery size — a shrunken contact
+sheet flatters UI type badly.
+
+Then `ae_proof` on each scene (`ae-motion-proof`). UI work is where its
+checks earn their keep: overlapping chips, a card clipped by the frame in
+the 9:16 cut, 1 px strokes shimmering, cascades whose offsets drifted.
+
+With a reference film, compare it beat by beat with
+`video-reference-compare`, and use `ae-reference-breakdown` to extract its
+timing first.

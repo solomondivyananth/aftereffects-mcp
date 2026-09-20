@@ -13,6 +13,25 @@ should stay **live**:
 | **A. Data as footage + expressions.** The file is in the project and expressions read it. | The numbers will change and the comp should update. One comp shows many values (charts). |
 | **B. The agent reads the data and builds with tool calls.** | One output per row (versions, cards, social tiles), or the data needs cleaning first. |
 
+Whichever you pick, **look at the data before you build anything**: row
+count, the longest string, the biggest and smallest number, empty cells. Two
+minutes there saves rebuilding forty comps.
+
+## Clean data first
+
+After Effects is unforgiving about file details, and every one of these
+fails quietly rather than loudly:
+
+| Trap | What it does | Fix |
+|---|---|---|
+| A byte-order mark or odd encoding | the first header is unreadable, `dataValue` returns nothing | save as plain UTF-8 |
+| Semicolons as separators (European exports) | the whole row is one column | save as comma-separated, or use `.tsv` |
+| Decimal commas (`3,5`) | `Number()` gives NaN | convert to points before importing |
+| Thousands separators (`1,200`) | splits the column, or NaN | strip them; format for display in the expression instead |
+| Spaces in headers or values | lookups by name miss | trim them |
+| Mixed types in a column | some rows animate, some do not | decide the type per column and enforce it |
+| A trailing empty line | one blank extra row | remove it, or check the row count |
+
 ## A. Data files as footage
 
 `ae_import_file` a `.csv`, `.tsv` or `.json`. It becomes a footage item named
@@ -71,6 +90,43 @@ Label and value text use Source Text expressions. Counters that roll up use
 Build all the bars in one `ae_batch`, one set of calls per row, changing only
 the row index and the x position.
 
+### Beyond bars
+
+| Chart | How to build it |
+|---|---|
+| Stacked bars | one bar layer per series, each offset by the sum of the ones below — compute the offsets yourself and write them as values |
+| Donut or progress ring | a shape ellipse with a stroke and Trim Paths; End = `value / max * 100` |
+| Line chart | build the path from the data yourself and write it with `ae_shape` as a `path`, then reveal it with Trim Paths. Expressions cannot make a path out of a CSV; arithmetic in your own head can |
+| Scatter | one small shape per row, positioned from two columns, staggered in |
+| Table or leaderboard | one row precomp, duplicated per row, each with its own text; sort the rows yourself before building |
+| A counter | `Math.round(linear(time, t0, t1, 0, value))` on Source Text |
+
+**Scale everything to one maximum.** Find the biggest value across the rows
+yourself and write it into the build (or into a Slider on the Controls
+null), so all the bars share one scale. A chart where each bar is scaled to
+its own maximum is a lie.
+
+**Round for reading, not for maths.** Show whole numbers, or one decimal;
+put the unit in the label, not on every bar.
+
+**Number formatting** matters more than the animation: pad counters to a
+fixed width and use tabular figures, or the text reflows every frame and
+shimmers (`ae-typography`).
+
+### Live or baked
+
+Expressions re-evaluate every frame, on every layer. Forty bars each reading
+a CSV is slow to preview and slow to render.
+
+- Keep it live while the numbers are still changing.
+- Once they are final, bake it: `ae_menu_command {"command": "Convert
+  Expression to Keyframes"}` with the property selected (Animation ▸
+  Keyframe Assistant). If the command name differs in this version the tool
+  says so — look it up rather than guessing.
+- Or skip expressions entirely and have the agent write plain keyframes from
+  the data in one `ae_batch`. For a one-off chart that is both faster to
+  build and faster to render.
+
 ### Updating
 
 Replace the data file on disk and use `ae_item_action {"action": "reload",
@@ -105,10 +161,21 @@ per product):
 | `sourceData` is null | it's a CSV: use `dataValue` |
 | Expression can't find the footage | the name must match the Project panel item exactly, extension included (check with `ae_list_items`) |
 | Bars grow from the middle | the shape isn't offset above the layer's origin: set the rect's position to minus half its height |
+| Numbers jitter as they count | proportional figures reflow every frame | pad the string and use a tabular font |
+| Everything previews slowly | dozens of per-frame expressions reading a file | bake to keyframes, or build the values in |
+| A reloaded file changes nothing | the item was replaced on disk but not reloaded | `ae_item_action {"action": "reload"}` |
 
 ## Check it
 
 Render the chart at its final state and read the bars and labels back
-against the data (`ae_render_frame`). Then `ae_review_motion` over the build
-to check the stagger. Before delivering versions, spot-check the first, the
-last and the longest row.
+against the data (`ae_render_frame`) — literally compare each number on
+screen with the source row. A chart that animates beautifully and shows the
+wrong figure is the worst outcome in this skill.
+
+Then `ae_review_motion` over the build to check the stagger, and `ae_proof`
+for the mechanical faults data tends to cause: labels overlapping their bars
+when a value is small, text clipped by the frame when a name is long,
+uneven stagger across generated rows (`ae-motion-proof`).
+
+Before delivering versions, spot-check the first row, the last row, the
+longest text and the largest and smallest values.

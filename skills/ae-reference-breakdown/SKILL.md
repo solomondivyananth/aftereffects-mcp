@@ -49,6 +49,37 @@ It prints the size, frame rate, duration and cut times, then writes:
 continuity: scenes morph into each other. Expect match-moves and shape
 transitions, not edits.
 
+### Read the cut list as statistics
+
+Before looking at a single frame, the cut times tell you the film's shape:
+
+- **Mean shot length.** Under 1.5 s is a fast promo; 3–6 s is a product
+  film; over 8 s is either luxury or a talking head.
+- **Where the cuts bunch.** Density rising towards the end means a build to
+  a payoff; even spacing means a list, not a story.
+- **Few cuts is information.** A 70-second film with four cuts is built on
+  continuity: scenes morph into each other. Expect match-moves and shape
+  transitions, not edits (`ae-transitions`, `ae-morph`).
+- **The longest shot is usually the point** — the hero product, the claim,
+  the end card.
+
+### Sample the palette and the type
+
+Get the palette as numbers rather than adjectives:
+
+```
+ffmpeg -i ref.mp4 -vf "fps=1,scale=160:-1,palettegen=max_colors=8" -y palette.png
+```
+
+Read that PNG and write the hexes down. Then decide which is background,
+which is neutral and which is the one accent (`ae-color`).
+
+For type, note case, weight, width and tracking, and how big the display
+type is as a fraction of frame height. Then find the nearest installed font
+with `ae_catalog {"kind": "fonts", "query": "…"}` and say it is an
+approximation — matching a typeface by eye is a guess, and a confident wrong
+name is worse than "a grotesque close to Inter".
+
 ## 3. Make the beat map
 
 Read the overview sheets and write one row per beat:
@@ -94,6 +125,24 @@ Then name each move in After Effects terms, using the craft skills:
 Say how confident you are in each. "Particles could be a plug-in; a native
 approximation follows" is more useful than a confident wrong guess.
 
+### What to write down for each move
+
+Vague notes produce vague rebuilds. For every signature move record:
+
+| Field | Example |
+|---|---|
+| What moves | the headline, word by word |
+| From → to | y +40 px and opacity 0 → rest |
+| Frames | 14 to rest, no overshoot |
+| Easing | bunched at the end: landing ease ~85 |
+| Stagger | 3 frames between words |
+| What leads | the blur clears before the position settles |
+| Blur / blend | additive glow, tight radius |
+| Confidence | high — plain text animator |
+
+That table converts directly into `ae_add_keyframes` calls, which is the
+point of doing it.
+
 ## 5. Prove the risky ones
 
 Anything you're unsure of, build in a **scratch comp in a throwaway project**
@@ -113,7 +162,24 @@ The output is a short document:
    and what to do instead.
 
 When the techniques are reusable across projects, turn them into or add them
-to a skill, following `AGENTS.md`.
+to a skill, following `AGENTS.md`. When they are reusable *within* a project,
+turn them into a template instead (`ae-ai-templates`), so the next twenty
+shots are one call each.
+
+## From breakdown to build
+
+The breakdown is only useful if it becomes a plan:
+
+1. Turn the beat map into a comp list — one comp per beat or scene, named
+   for the beat, at the delivery size.
+2. Mark which beats share a technique. Those become one template or one
+   precomp used several times, not five hand-built versions.
+3. Build the hardest beat first. If the signature move does not work, the
+   whole plan changes, and you want to know on day one.
+4. Match timing to the numbers you wrote down, then check with
+   `video-reference-compare` at the same timestamps.
+5. Do not copy the content. Palette, pace and technique are what you took;
+   the words, logos, characters and music must be the client's own.
 
 ## Splitting the work across agents
 

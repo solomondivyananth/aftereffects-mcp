@@ -49,6 +49,20 @@ ae_template {"action": "build", "template": "lower-third", "format": "9x16",
 `ae_welcome` builds the welcome template and opens it. It's also the
 quickest way to prove a new install works end to end.
 
+## When a build fails
+
+A build runs inside one `ae_batch` with `atomic: true`, so a failure leaves
+the project exactly as it was — there is never a half-made comp to clean up.
+Read the error, which names the step:
+
+| Error | Means | Do |
+|---|---|---|
+| "… is N characters, the limit is M" | the copy is longer than the design holds | shorten it; the limit is where the layout breaks, not a suggestion |
+| "… is not a slot" | a typo, or a slot from another template | `describe` the template and use its names |
+| "unknown name X in expression" | the template's own JSON is wrong | fix the template, not the call |
+| A step fails on a property path | After Effects renamed something, or a property is hidden | read the real path back with `ae_layer_detail` |
+| The build succeeds but `expressionErrors` is not empty | an expression in the template broke | fix the template and rebuild; do not ship it |
+
 ## Choosing and filling from a brief
 
 1. Pick the template whose *purpose* matches the brief, not its look.
@@ -125,6 +139,38 @@ assignments and no `{}` objects; for alternatives, write two steps with
   previews show a transparent (white) frame.
 - **Name all copy neutrally.** Defaults are placeholders, never a real
   person's or brand's text.
+
+### Designing the slots
+
+The slots are the whole interface. Get them wrong and the template is either
+rigid or unusable.
+
+- **One slot per decision a person actually makes.** A brief says a name, a
+  title and a brand colour — not a font size, a Y position and an ease.
+- **Set `maxChars` by measuring, not guessing.** Build the template with
+  filler text, lengthen it until the layout breaks, then set the limit a few
+  characters below that. Write the number down in `describe`.
+- **Defaults must be shippable.** Someone will build with no values at all;
+  the result should look designed, with neutral placeholder copy — never a
+  real person's or brand's text.
+- **Lists need `minItems` and `maxItems`.** Three chips look deliberate;
+  eleven overflow. Say so in `describe`.
+- **Enums beat numbers** for anything with a house style: `theme: light |
+  dark`, not `backgroundLightness: 0–100`.
+- **Formats adapt, they do not crop.** In portrait, stack what was side by
+  side, raise type sizes relative to width, and move the content off the
+  bottom fifth where the platform UI sits.
+
+### Building a new one, end to end
+
+1. Sketch it as a comp by hand first, with the real tool calls, in a scratch
+   project. Get it looking right before it becomes JSON.
+2. Turn the calls into `steps`, replacing the hard-coded values with slots
+   and expressions.
+3. `npm test` — it expands every template with its defaults in every format.
+4. Build it live in each format, with the **longest** copy its slots allow.
+5. Look at every contact sheet, and run `ae_proof` on each build.
+6. Add it to the table above and to the README's count.
 
 **Validate:** `npm test` expands every template with its defaults in every
 format and fails on unknown names, unknown tools, `NaN`, or leftover `{{`.

@@ -34,6 +34,10 @@ Wire them up with expressions. For example, a line layer's Opacity:
 `thisComp.layer("Controls").effect("Show Line")("Checkbox") * 100`. A shape
 fill's colour: `thisComp.layer("Controls").effect("Accent")("Color")`.
 
+**Name controls for the person, not the build.** "Accent colour", "Show
+line", "Speed" — not "ctrl_01". Whatever you write here is what an editor
+sees in Premiere, and it cannot be renamed from the other end.
+
 ## 2. Expose them in Essential Graphics
 
 `ae_essential_graphics` puts properties in the Essential Graphics panel under
@@ -68,6 +72,39 @@ nothing. Check with `ae_comp_tree` before undoing again. Editors add the file in
 panel. `action: "open"` shows the panel in After Effects if the user wants to
 arrange it by hand (grouping and comments are done there).
 
+## Timing an editor can trim
+
+An editor will drag the ends of your template on their timeline. If the
+animation sits anywhere but the first and last second, trimming cuts it in
+half.
+
+- Put the in-animation in the first second and the out in the last, with a
+  hold between. Then any duration works.
+- **Responsive Design – Time** marks those sections as protected so trimming
+  only eats the hold. It is set in the Essential Graphics panel by hand —
+  not scriptable — so build the template to suit it and ask the user to mark
+  the protected regions before exporting (`ae_essential_graphics
+  {"action": "open"}` brings the panel up).
+- Keep the out-animation shorter than the in. Editors trim the tail far more
+  often than the head.
+
+## What a .mogrt cannot take with it
+
+A .mogrt is self-contained, which means everything outside the comp is left
+behind. Before exporting, check for:
+
+| Problem | What happens in Premiere | Fix |
+|---|---|---|
+| An expression pointing at a layer in another comp | the expression errors and the property freezes | keep every reference inside the template comp, or precompose so it is |
+| A font the editor does not have | silent substitution | use a common font, or state the requirement in the template name |
+| Third-party effects | the template refuses to load or the effect is skipped | build the look from stock effects (`ae-effects`) |
+| Footage the template needs | the media is missing | package it as media replacement, which is set in the panel by hand |
+| Expression controls not exposed | the editor can see the result but change nothing | expose the Controls, not the properties they drive |
+
+Export, then re-import the .mogrt into a fresh project (or ask the user to
+try it in Premiere) before calling it done. A template that only works on
+the machine that built it is not a template.
+
 ## 4. Make it robust
 
 A template gets abused. Build for that:
@@ -88,7 +125,27 @@ A template gets abused. Build for that:
 - **Fonts.** Use a font every editor has, or say which font is required.
   `ae_text` reports the font.
 - **Test with bad data.** Before exporting, set the text to something very
-  long, something very short, and an empty string. `ae_render_frame` each one.
+  long, something very short, and an empty string. `ae_render_frame` each
+  one, and run `ae_proof` on the longest version — `text-overflow`,
+  `overlap` and `clipped` are exactly what over-long copy causes
+  (`ae-motion-proof`).
+- **Lock what must not move.** `ae_set_layer_props {"props": {"locked":
+  true}}` on background and guide layers, so a person poking at the comp
+  cannot drag them.
+- **Leave the comp tidy.** Controls at the top, unique layer names, no
+  disabled experiments left behind. The next person to open it reads the
+  layer stack as documentation.
+
+## Before you hand it over
+
+| Check | How |
+|---|---|
+| Every knob is exposed and named | `ae_essential_graphics {"action": "list"}` |
+| Nothing breaks at extremes | longest copy, shortest copy, empty string, and both themes if there is a switch |
+| One accent recolours everything | change the Controls colour, render a frame |
+| It survives trimming | shorten the comp, render the last frame |
+| It is mechanically clean | `ae_proof` on the comp |
+| The .mogrt loads elsewhere | re-import it, or have the user try it in Premiere |
 
 ## 5. Many versions from one template
 

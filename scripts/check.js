@@ -134,6 +134,23 @@ for (const dir of fs.readdirSync(path.join(ROOT, 'skills'))) {
 }
 if (!pkg.files.includes('skills/')) { fail('package.json "files" does not ship skills/'); }
 
+/* 5a. Every expression a skill teaches has to be valid JavaScript. This does
+      not prove it works in After Effects — only ae_set_expression against a
+      live app does that — but a typo in a cookbook is a typo an agent copies. */
+{
+  let blocks = 0;
+  for (const dir of fs.readdirSync(path.join(ROOT, 'skills'))) {
+    const file = path.join('skills', dir, 'SKILL.md');
+    if (!fs.existsSync(path.join(ROOT, file))) { continue; }
+    for (const m of read(file).matchAll(/```js\n([\s\S]*?)```/g)) {
+      blocks++;
+      try { new vm.Script('(function(){' + m[1] + '\n})'); }
+      catch (e) { fail(file + ': an expression does not parse — ' + e.message + ' — in "' + m[1].slice(0, 60).replace(/\s+/g, ' ') + '…"'); }
+    }
+  }
+  if (blocks < 20) { fail('only ' + blocks + ' expression blocks found in skills/ — the extractor is probably broken'); }
+}
+
 /* 5b. A skill an agent can't see may as well not exist. Claude Code reads
       .claude/skills, so when that folder is set up here it must hold every
       skill — `npm run skills` relinks them. */
