@@ -1,6 +1,6 @@
 ---
 name: ae-templates
-description: Build reusable templates in After Effects through the AE MCP Bridge - a Controls null that drives everything through expressions, Essential Graphics panel controls with editor-friendly names, Motion Graphics templates (.mogrt) exported for Premiere Pro, text that resizes with its box, and versioning a template for many deliverables. Use when asked for a template, a MOGRT, a lower third or title that editors can change, a reusable pack, or "make this easy to update".
+description: Build reusable templates in After Effects through the AE MCP Bridge - a Controls null that drives everything through expressions, Essential Graphics panel controls with editor-friendly names, Motion Graphics templates (.mogrt) exported for Premiere Pro, text that resizes with its box, rigs an animator can still key, and versioning a template for many deliverables. Use when asked for a template, a MOGRT, a lower third or title that editors can change, a reusable pack, or "make this easy to update".
 ---
 
 # Templates
@@ -112,11 +112,16 @@ A template gets abused. Build for that:
 - **Long text.** Use box text (`ae_create_layer` kind `box_text`) or scale
   text to fit. On Scale:
   ```js
-  var w = sourceRectAtTime(time, false).width;
+  var w = sourceRectAtTime(inPoint + 1.5, false).width;
   var max = 900;
-  var s = w > max ? 100 * max / w : 100;
+  var s = (w > max) ? 100 * max / w : 100;
   [s, s]
   ```
+  Measure the finished line (here 1.5 s after the layer starts, once any
+  type-on is complete), not the current frame. Measured at `time`, the width
+  changes as the text types on and off, so the scale changes with it and the
+  text visibly breathes. If the text is empty the width is 0, and the
+  `w > max` test keeps that from dividing by zero.
 - **Backgrounds that follow the text.** A shape's Rectangle Size can read
   the text's width: `var r = thisComp.layer("Name").sourceRectAtTime(time, false); [r.width + 80, r.height + 40]`.
 - **Timing that survives edits.** Put the in and out animation in the first
@@ -135,6 +140,40 @@ A template gets abused. Build for that:
 - **Leave the comp tidy.** Controls at the top, unique layer names, no
   disabled experiments left behind. The next person to open it reads the
   layer stack as documentation.
+
+### Rigs an animator can still key
+
+A template that animates itself is only useful if a person can still change
+the motion. Build so automatic motion and hand keys add up:
+
+- **Automatic motion goes on a parent.** Put a float, bob or drift on a null
+  and parent the layer to it. The layer's own Transform stays free for the
+  animator's keys, and removing the effect means unparenting, not
+  untangling an expression.
+- **Offsets add to `value`.** `value` already includes the layer's own
+  keyframes, so an expression that adds to it keeps them working. On
+  Position:
+  ```js
+  var c = thisComp.layer("Controls");
+  value + [c.effect("Nudge X")("Slider"), c.effect("Nudge Y")("Slider")]
+  ```
+  An expression that *replaces* `value` (`[960, 540] + …`) silently throws
+  away every key a person sets. Test it: key the layer by hand, and the
+  result should be your key plus the offset.
+- **Zero means untouched.** Every amount control (Parallax, Float, Shake) at
+  0 must give back the exact layout without the rig. Render a frame at 0 and
+  compare it with the layer's own values.
+- **Parent first, then key.** When you parent, After Effects keeps the child
+  where it is by working out its transform relative to the parent at that
+  moment. If the parent is at Scale 0 or mid-spin then, the child gets a
+  broken transform and renders offset or cropped. Parent while the parent is
+  at rest (Scale 100, Rotation 0), and before keying the parent, or park the
+  playhead on a rest frame first (`ae_goto`).
+- **Shared precomps are shared.** Before editing a precomp, check which comps
+  use it: `ae_list_items {"kind": "comp"}` gives every item's `usedIn`. An
+  entrance you add for one scene also plays in the montage that uses the
+  same precomp at time 0. Duplicate it with `ae_duplicate_comp`
+  when only one use should change.
 
 ## Before you hand it over
 

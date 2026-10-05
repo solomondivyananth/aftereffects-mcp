@@ -107,6 +107,30 @@ Where it goes: `~/Library/Application Support/Adobe/CEP/extensions` on macOS,
 The included `.mcp.json` registers the server for this project directory, so
 Claude Code picks the tools up automatically when run from the repo.
 
+### Optional: notes to tweaks with Jev
+
+Give `ae_review_motion` a `note` in plain words ("the logo feels floaty and
+lands late") and it adds a **tweak plan** to the preview. Code reads every
+keyframe and describes each move in words. [Jev](https://docs.typesafe.ai),
+TypeSafe's System One model, judges which layer the note means, which
+tweaks it asks for (faster, firmer landing, less bounce, tighter stagger,
+earlier, longer hold, motion blur…) and how much. Code then turns confident
+answers into exact keyframe edits, returned as one `ae_batch`. When Jev is
+unsure, the plan asks which layer or which tweak instead of guessing.
+Nothing is applied until the agent runs the batch, and it is one undo step.
+
+It needs a TypeSafe API key in the server's environment. Never put the key
+in `.mcp.json`, which is committed:
+
+```bash
+export TYPESAFE_API_KEY=…            # then start Claude Code from this shell
+claude mcp add after-effects -e TYPESAFE_API_KEY=… -- npx -y aftereffects-mcp
+```
+
+Without a key, the note still comes back with every move described in
+words, for the agent to judge itself. `TYPESAFE_MODEL` pins a version
+(default `jev-latest`).
+
 ---
 
 ## Safety
@@ -152,6 +176,11 @@ Those three checks close three different routes to the same hole. Without them,
 cross-origin POST with `Content-Type: text/plain` is a CORS "simple request", so
 the browser sends it with no preflight. The attacker can't read the response,
 but by then the code has already run. See [SECURITY.md](SECURITY.md).
+
+The server makes one kind of outbound call, and only when you opt in: with
+`TYPESAFE_API_KEY` set, `ae_review_motion` with a `note` sends that note,
+plus the animated layers' names and a description of their moves in words,
+to `api.typesafe.ai`. No frames, footage or project file leave the machine.
 
 ---
 
@@ -203,7 +232,7 @@ works. `npm test` validates every template in every format.
 
 ### Skills
 
-Nineteen skills ship in `skills/`. **Every MCP client gets them as prompts of
+Twenty-two skills ship in `skills/`. **Every MCP client gets them as prompts of
 the same name**, so they work in Claude Desktop, Codex, Cursor and the rest
 with no setup. Claude Code reads skills from a `.claude/skills` folder
 instead — run `npm run skills` in a clone to link them into this repo, or
@@ -227,6 +256,9 @@ instead — run `npm run skills` in a clone to link them into this repo, or
 | `ae-ai-templates` | fill the built-in templates from a brief, and write new ones |
 | `ae-composition` | staging a frame: one dominant element, scale hierarchy, using the whole frame, varying beats |
 | `ae-motion-proof` | screen a comp for overlaps, jitter, pops, unreadable text and under-staged beats |
+| `ae-vfx-cleanup` | removing wires, rigs, objects and signs from footage, checking keys, seating a subject in a plate, frozen-frame QA |
+| `ae-character-rig` | cut-out characters: joints, IK arms and legs, blinks, gaze, head turns, mouth poses, walk cycles |
+| `ae-localization` | language versions: word inventory, translation sheets, fonts for every script, refitting type |
 | `ae-deliver` | pre-flight, format variants with safe areas, renders, verifying the file |
 | `ae-reference-breakdown` | turn a reference film into a beat map and rebuildable techniques |
 | `video-reference-compare` | frame-by-frame comparison of a render against a reference |

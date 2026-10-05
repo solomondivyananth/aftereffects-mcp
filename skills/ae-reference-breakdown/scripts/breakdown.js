@@ -52,10 +52,16 @@ const ffmpegLog = (args) => {
 
 /* 1. Probe. */
 const probe = JSON.parse(run('ffprobe', ['-v', 'error', '-show_entries',
-  'stream=codec_type,width,height,r_frame_rate:format=duration', '-of', 'json', VIDEO]));
+  'stream=codec_type,width,height,r_frame_rate,avg_frame_rate:format=duration', '-of', 'json', VIDEO]));
 const v = probe.streams.find((s) => s.codec_type === 'video');
 const [fn, fd] = v.r_frame_rate.split('/').map(Number);
 const fps = fd ? fn / fd : fn;
+/* Phone and screen recordings are often variable frame rate: the nominal
+   rate and the average disagree, and frame counts taken at the nominal rate
+   drift. Say so rather than report timings that are quietly off. */
+const [an, ad] = String(v.avg_frame_rate || '0/0').split('/').map(Number);
+const avgFps = ad ? an / ad : 0;
+const vfr = avgFps > 0 && Math.abs(avgFps - fps) / fps > 0.01;
 const duration = Number(probe.format.duration);
 const hasAudio = probe.streams.some((s) => s.codec_type === 'audio');
 
@@ -106,9 +112,13 @@ if (o.windows) {
   }
 }
 
-const report = { video: path.resolve(VIDEO), width: v.width, height: v.height, fps: Math.round(fps * 1000) / 1000,
+const report = { video: path.resolve(VIDEO), width: v.width, height: v.height, fps: Math.round(fps * 1000) / 1000, variableFrameRate: vfr,
   duration: Math.round(duration * 1000) / 1000, hasAudio, cuts, files };
 fs.writeFileSync(path.join(OUT, 'breakdown.json'), JSON.stringify(report, null, 2));
 console.log(v.width + 'x' + v.height + ' · ' + report.fps + ' fps · ' + report.duration + ' s · ' + cuts.length + ' cut(s)' + (hasAudio ? ' · audio' : ''));
+if (vfr) {
+  console.log('warning: variable frame rate (nominal ' + report.fps + ', average ' + (Math.round(avgFps * 1000) / 1000) +
+    ' fps). Frame counts are approximate; convert to constant rate first: ffmpeg -i IN -fps_mode cfr -r ' + Math.round(avgFps) + ' OUT.mp4');
+}
 console.log('cuts: ' + (cuts.length ? cuts.join(', ') : 'none (continuous: look for transitions in the overview)'));
 files.forEach((f) => console.log('  ' + f.file + '  ' + f.covers.map((x) => x.toFixed(2)).join('–') + ' s'));

@@ -1,6 +1,6 @@
 ---
 name: ae-typography
-description: Kinetic typography in After Effects through the AE MCP Bridge - text animators and selectors (range, wiggly, expression), word-by-word blur-in, per-letter waves, scatter and reassemble, typing cursors, stretched words, selection-highlight wipes, gradient-filled words, text on a circle path that becomes a ring, repeated-row patterns, and depth-of-field word clouds, all verified in After Effects. Use when asked to animate text or titles, build kinetic type, make words appear, type on, wave, scatter, or when text animation looks flat.
+description: Kinetic typography in After Effects through the AE MCP Bridge - text animators and selectors (range, wiggly, expression), word-by-word blur-in, per-letter waves, scatter and reassemble, typing cursors, scramble-and-decode text, stretched words, selection-highlight wipes, gradient-filled words, text on a circle path that becomes a ring, repeated-row patterns, and depth-of-field word clouds, all verified in After Effects. Use when asked to animate text or titles, build kinetic type, make words appear, type on, wave, scatter, or when text animation looks flat.
 ---
 
 # Kinetic typography
@@ -145,6 +145,37 @@ var cursor = (Math.floor(time * 2) % 2 === 0) ? "|" : " ";
 full.substr(0, n) + cursor
 ```
 
+**Scramble that decodes into the word.** Letters flicker through random
+characters and lock into the real word from left to right. Never do this with
+an expression that rewrites Source Text: the text stops being editable, and
+the line reflows every frame. Use two animators:
+
+- **"Scramble"**: Character Offset only. Its Range Selector's Start is keyed
+  0 → 100 over the reveal, so characters left of Start are outside the range
+  and show their real letter. Set the animator's Character Range to Preserve
+  Case & Digits, so capitals stay capitals. An expression on Character Offset
+  makes the letters in range flicker:
+
+  ```js
+  posterizeTime(15);
+  Math.round(random(-18, 18))
+  ```
+
+- **"Arrive"**: Opacity 0, with its own Range Selector keyed the same way but
+  about 4 frames earlier. Characters appear just ahead of the decode front
+  instead of all being on screen as noise from the first frame.
+
+Monospaced type makes it steadier, because random characters change width.
+With a proportional font, lock the layout by keeping the reveal short
+(12–20 frames) and giving the line a little tracking.
+
+**Type-on that starts later.** Before its first keyframe, a property holds
+the first key's value. So if a type-on's first key is at 2 s, the frames
+before 2 s show whatever that key says. Make the first key the *hidden*
+state (Start 0 with Opacity 0 in range), or trim the layer's in-point to the
+moment the typing starts. A type-on whose first key is "fully revealed"
+shows the whole line early and then retypes it.
+
 **A word that stretches** (a letter repeated as time passes), for emphasis
 without a new layer:
 
@@ -229,6 +260,8 @@ as they cross the focus distance. The camera rig, focus and depth are in
 | The reveal feels mechanical | Shape 1 with Smoothness 0, or a linear Offset | Shape 2, Smoothness 80–100, landing ease 70–85 |
 | Blur makes the type mushy | Blur is in pixels and small type has little to lose | blur 8–14 on display type only, and settle it to 0 well before the hold |
 | The fill colour ignores your gradient | a Fill Color animator overrides the matte trick | remove Fill Color from the animator, or drive the ramp instead |
+| A new text layer comes out all caps, faux bold or in the wrong font | new text inherits the Character panel's last settings | pass the full style (font, size, allCaps, fauxBold) when creating it, and read it back with `ae_layer_detail` |
+| Text shows complete, then types on | the type-on's first key is the revealed state, or the layer starts before it | first key hidden, or move the in-point |
 | Text reads for a moment then goes | the hold is shorter than the copy | ~3 words a second; `ae_proof`'s `read-time` gives the number |
 
 ## Taste

@@ -143,6 +143,39 @@ Vague notes produce vague rebuilds. For every signature move record:
 That table converts directly into `ae_add_keyframes` calls, which is the
 point of doing it.
 
+### Rebuilding faithfully
+
+When the brief is "match this" rather than "in the style of this", the
+reference is the spec:
+
+- **Write down what stays still.** Every rebuild drifts toward adding
+  motion: a gentle float on the logo, a breathing background, a wobble on
+  the wing. If the reference holds something still, the rebuild does too.
+  List the still elements beside the moving ones in the beat map.
+- **Keep causes apart.** A shot that moves can be the camera moving, the
+  object moving, the object deforming, or the light changing. Give each its
+  own layer or control (a camera null, the object's own transform, a path,
+  a light or gradient). Don't bake all four into one Position curve, or no
+  single one can be tuned later.
+- **Fit keys to the path; don't sample it.** Place a key where the motion
+  changes character (starts, peaks, reverses, lands) and let the ease shape
+  the rest. Keeping every Nth frame of a measured path gives jitter and a
+  curve nobody can edit (`ae_proof` flags it as `jitter`). Putting Easy Ease
+  on every key makes the motion stop at each one, which the reference never
+  did. Ease only where the motion really starts or lands.
+- **Find every turnaround.** Step through the frames where a motion changes
+  direction and put a key on each one. Skip one and the object turns back
+  early, cutting the corner of the real path.
+- **Mark inference as inference.** Anything hidden (off-frame, behind
+  another layer, under motion blur) is a guess. Say so in the write-up so
+  the next person knows which parts can change.
+- **Measure frames exactly.** Pull strips at the film's own rate
+  (`--strip-fps` equal to its fps), not a round 10 or 12, or you count
+  resampled frames. Phone and screen recordings are often variable frame
+  rate. The script warns when the nominal and average rates disagree; convert
+  those to constant rate first (the warning prints the ffmpeg command), or
+  every frame count drifts.
+
 ## 5. Prove the risky ones
 
 Anything you're unsure of, build in a **scratch comp in a throwaway project**

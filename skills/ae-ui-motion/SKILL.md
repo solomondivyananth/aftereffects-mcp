@@ -1,6 +1,6 @@
 ---
 name: ae-ui-motion
-description: App and product-launch motion in After Effects through the AE MCP Bridge - soft mesh-gradient backgrounds, UI screens as layered 3D panels with perspective tilts and rim light, cards that cascade in, AI responses that stream in with a shimmer, device mockups, a logo that becomes the app header, light-to-dark theme switches for a premium tier, particle dissolves into a logo, and a light-sweep end card. Use when asked for an app launch, product demo, SaaS or AI feature video, UI walkthrough, or "make the interface feel alive".
+description: App and product-launch motion in After Effects through the AE MCP Bridge - soft mesh-gradient backgrounds, UI screens as layered 3D panels with perspective tilts and rim light, cards that cascade in, carousels and coverflow on one slider, glass panels, looping collaboration cursors, AI responses that stream in with a shimmer, device mockups, a logo that becomes the app header, light-to-dark theme switches for a premium tier, particle dissolves into a logo, and a light-sweep end card. Use when asked for an app launch, product demo, SaaS or AI feature video, UI walkthrough, or "make the interface feel alive".
 ---
 
 # UI and product-launch motion
@@ -96,6 +96,73 @@ separately and move in depth.
   others fall back with camera depth of field. Don't highlight it with
   colour.
 
+## Carousels and coverflow
+
+Drive every card from one **Slide** slider on the Controls null, never by
+keying each card. Key Slide from 0 to 1, 2, 3 with holds between steps, and
+every card moves together with the same ease. Name the cards "Card 1" …
+"Card N", make them 3D, and put this on each card's Position:
+
+```js
+var c = thisComp.layer("Controls");
+var slide = c.effect("Slide")("Slider");
+var n = c.effect("Count")("Slider");
+var i = parseInt(thisLayer.name.split(" ").pop(), 10) - 1;
+var d = i - slide;
+d = ((d % n) + n) % n;
+if (d > n / 2) { d -= n; }
+[thisComp.width / 2 + d * 420, value[1], Math.abs(d) * 320]
+```
+
+The two lines with `%` wrap the carousel so it loops. JavaScript's `%` keeps
+the sign of the left side (`-1 % 5` is `-1`), so the `+ n` and second `%`
+bring negative offsets back into range. Without them, sliding backwards past
+the first card breaks the loop. On Y Rotation, `d` from the same lines gives
+the coverflow turn:
+
+```js
+var c = thisComp.layer("Controls");
+var n = c.effect("Count")("Slider");
+var d = parseInt(thisLayer.name.split(" ").pop(), 10) - 1 - c.effect("Slide")("Slider");
+d = ((d % n) + n) % n;
+if (d > n / 2) { d -= n; }
+-clamp(d, -1, 1) * 50
+```
+
+Fade cards beyond ±2 with Opacity `linear(Math.abs(d), 2, 3, 100, 0)`. Then
+check the ones that are gone: a card at Opacity 0 can still cast shadows or
+hide what's behind it in some renderers, so render the frame where a card
+wraps around.
+
+## Glass panels
+
+A glass panel is not a white rectangle at 20% opacity. It is the background
+seen *through* something: blurred, bent at the edges, lit along the rim,
+tinted a little. It shows nothing over a flat colour, so test it over a busy
+background.
+
+1. **The shape**: a rounded rectangle, `ae_shape`, named "Glass Shape".
+2. **The see-through**: an adjustment layer above the background, with its
+   track matte set to the shape (`trackMatte {"layer": "Glass Shape",
+   "type": "alpha"}`). On it: Gaussian Blur (Blurriness 25–40, Repeat Edge
+   Pixels on), then Bulge (`ADBE Bulge`) centred on the panel with a small
+   Bump Height (0.2–0.4) so the background bends near the edges like thick
+   glass.
+3. **Tint**: a duplicate of the shape with a white fill at 6–12%. Use a
+   brand tint only if the design asks for one.
+4. **Rim light**: a 1–2 px stroke on another duplicate, gradient from white
+   at about 60% (top left) to 0 (bottom right), so the light has a
+   direction. A second, darker stroke at the opposite corner in Multiply
+   gives the edge thickness.
+5. **Shadow**: a Drop Shadow on the tint layer, soft (Softness 40–60) and
+   light (Opacity 15–25%), so the panel sits above the page.
+
+Parent every part to the Glass Shape, so moving or resizing it moves the
+whole panel, and keep the matte directly above the adjustment layer. When
+the panel moves over a moving background the blur and bend update live;
+render it moving (`ae_review_motion`) and check the rim at full size
+(`downscale: 1`).
+
 ## Cursors, clicks and scrolls
 
 Nothing gives away a fake UI faster than a cursor that moves like a robot.
@@ -115,6 +182,23 @@ Nothing gives away a fake UI faster than a cursor that moves like a robot.
 
 Every one of these should be 20–30% faster than real life. Real interaction
 timings feel sluggish on screen.
+
+**Collaboration cursors** (several named cursors wandering a whiteboard)
+have to loop without a jump. `wiggle()` never returns to where it started,
+so use sines whose frequencies are whole multiples of one loop length. They
+are back at the start at the end of every loop:
+
+```js
+var loop = 6;
+var p = 2 * Math.PI * (time % loop) / loop;
+value + [140 * Math.sin(p) + 40 * Math.sin(3 * p), 80 * Math.sin(2 * p + 1)]
+```
+
+Give each cursor a different phase offset (`+ 1`, `+ 2.5`) and amplitude,
+and parent its name tag to it. For handwriting on the board, draw centreline
+strokes with `ae_shape` in the order a pen would, reveal them with Trim
+Paths, and use them as the track matte of the real text layer, so the words
+stay editable.
 
 ## States the product really has
 

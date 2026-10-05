@@ -1,6 +1,6 @@
 ---
 name: ae-effects
-description: Special effects, blur and motion blur in After Effects through the AE MCP Bridge - glows, light rays and flares, fractal noise, displacement and distortion, particles, chromatic split, grain, stylized looks, and every kind of blur (Gaussian, directional, radial, lens blur, pixel motion blur, comp motion blur), with exact effect and parameter names. Use when asked for a look or an effect (glow, energy, glitch, heat haze, smoke, sparks, dreamy, filmic, whip blur), or when motion looks strobey and needs blur.
+description: Special effects, blur and motion blur in After Effects through the AE MCP Bridge - glows, light rays and flares, fractal noise, displacement and distortion, particles, chromatic split, grain, stylized looks, paper and print finishes, stepped on-twos cadence, effects driven by map layers, and every kind of blur (Gaussian, directional, radial, lens blur, pixel motion blur, comp motion blur), with exact effect and parameter names. Use when asked for a look or an effect (glow, energy, glitch, heat haze, smoke, sparks, dreamy, filmic, whip blur), or when motion looks strobey and needs blur.
 ---
 
 # Effects and blur
@@ -85,6 +85,60 @@ Animate noise with an expression, not keyframes. On
 `["Effects","Fractal Noise","Evolution"]`: `time * 90`. For a heat haze, put
 Turbulent Displace (Amount 5–10, Size 40–80) on an adjustment layer and
 animate its Evolution the same way.
+
+## Effects that read another layer
+
+Displacement Map, Set Matte, Compound Blur, Card Dance, Caustics and the
+gradient wipes take a *map layer* and read its brightness or alpha. Three
+things decide what they see:
+
+- **Which stage of the map they read.** The map-layer menu has Source, Masks
+  and Effects & Masks. On Source, the effect sees the map's raw pixels:
+  its own masks, effects and transform are ignored. So a Fractal Noise map
+  animated on its own layer reads as an empty solid. Pick Effects & Masks,
+  or precompose the map.
+- **Neutral values.** For Displacement Map, 50% grey (128) moves nothing;
+  brighter pushes one way and darker the other. A map that averages lighter
+  than mid-grey shifts the whole image as well as distorting it. For Compound
+  Blur, black is sharp and white is fully blurred.
+- **Size.** A map that isn't comp-sized is centred, stretched or tiled (the
+  effect's map-behaviour menu). Stretch changes the scale of the pattern, so
+  make the map the size of the layer it drives.
+
+Hide the map layer (switch its video off); the effect still reads it.
+
+## Paper, print and stepped motion
+
+Collage, cut paper and print looks have one rule: **what the material is
+stays still; only the life on top of it moves.**
+
+- **Paper fibre is still.** A Fractal Noise or photographed paper layer
+  with no Evolution, in Multiply or Overlay at low opacity. Animated noise on
+  paper reads as video noise, not paper.
+- **Grain moves.** A separate `VISINF Grain Implant` or `ADBE Noise2` pass
+  (Amount 4–8%, colour off) on an adjustment layer at the top.
+- **Print boil.** Turbulent Displace at a very low Amount (1–2, Size 50–60)
+  on the cut-out, with Evolution stepped so the edge shifts a few times a
+  second instead of crawling:
+  ```js
+  posterizeTime(8);
+  time * 90
+  ```
+- **Cut-out shadows.** Two Drop Shadows: a tight contact shadow (Opacity
+  ~30%, Distance 2, Softness 3) and a soft ambient one (Opacity ~12%,
+  Distance 7, Softness 12) at 1920 px wide. Scale Distance and Softness with
+  the comp width.
+
+**Stepped cadence ("on twos").** Two tools, different results:
+
+| Tool | Steps | Use it for |
+|---|---|---|
+| `posterizeTime(n)` as the first line of an expression | that one property | a boil, a flicker, a counter |
+| Posterize Time effect (`ADBE Posterize Time`) on an adjustment layer | the whole image below it, camera moves and all | a stop-motion or animated-on-twos look for a whole scene |
+
+Choose a rate that divides the comp's rate: 15 on 30 fps or 12 on 24 fps
+gives even holds. 12 on 30 gives holds of 2 and 3 frames alternately, which
+reads as a stutter, not a style.
 
 ## Presets and behaviours (After Effects 2026)
 
@@ -211,6 +265,9 @@ slider can drive both glows in the stack, so one dial changes the whole look
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| A coloured shape glows to white | the glow adds on top of the fill until it clips | keep the core crisp: glow a duplicate placed *under* the original (or Composite Original set to On Top), and lower the intensity rather than the threshold |
+| A displacement shifts the whole image | the map averages brighter or darker than 50% grey | re-level the map around mid-grey |
+| A map-driven effect ignores the map's animation | the effect reads the map's Source stage | set the map menu to Effects & Masks, or precompose the map |
 | The glow is a grey haze | the threshold is too low, so mid-tones glow | raise Glow Threshold to 50–70; glow only the bright core |
 | A full-frame blur fades at the edges | the blur samples empty space outside the layer | Repeat Edge Pixels on, or Grow Bounds before it |
 | The effect stops at a straight edge | it is on a shape or text layer, clipped to its bounds | move it to an adjustment layer, or Grow Bounds |

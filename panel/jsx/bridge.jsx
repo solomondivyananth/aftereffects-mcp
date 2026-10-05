@@ -1777,6 +1777,14 @@ function _itemInfo(it) {
         o.kind = 'folder';
         o.numItems = it.numItems;
     }
+    /* Which comps use it, so a shared precomp is never edited blind. */
+    if (it instanceof CompItem || it instanceof FootageItem) {
+        try {
+            var u = it.usedIn, j;
+            o.usedIn = [];
+            for (j = 0; j < u.length; j++) { o.usedIn.push(u[j].name); }
+        } catch (eU) {}
+    }
     return o;
 }
 

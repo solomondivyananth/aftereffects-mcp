@@ -110,6 +110,28 @@
     section { padding-block: 5px; gap: 4px; }
     .hide-short { display: none; }
   }
+  [hidden] { display: none !important; }
+  #workspace { min-height: 0; display: grid; grid-template-rows: auto minmax(0,1fr); }
+  .workspace-tabs { display: flex; border-bottom: 1px solid var(--line); }
+  .workspace-tabs button { flex: 1; font: inherit; padding: 7px; border: 0; border-bottom: 2px solid transparent; background: var(--bg); color: var(--dim); cursor: pointer; }
+  .workspace-tabs button[aria-selected=true] { color: var(--fg); border-bottom-color: var(--accent); }
+  #library { min-height: 0; overflow: auto; background: var(--sunken); padding: 10px; }
+  .library-toolbar { display: grid; gap: 8px; }
+  #library input { width: 100%; min-width: 0; padding: 6px 8px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+  .library-filters button[aria-pressed=true] { border-color: var(--accent); color: var(--accent); }
+  #libraryNotice, #libraryPreviewState, #libraryComp, #libraryResults { color: var(--dim); font-size: 10px; }
+  #libraryNotice.library-error { color: var(--err); }
+  #libraryDetail { display: grid; gap: 7px; border: 1px solid var(--line); border-radius: 5px; padding: 8px; margin: 10px 0; background: var(--bg); }
+  #libraryVideo, #libraryPoster { width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #111; border-radius: 3px; }
+  .library-actions { flex-wrap: wrap; }
+  #libraryDescription { margin: 0; color: var(--dim); font-size: 10px; }
+  #libraryCards { display: grid; grid-template-columns: repeat(auto-fill,minmax(125px,1fr)); gap: 8px; padding-top: 10px; }
+  .library-card { display: grid; gap: 5px; min-width: 0; padding: 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+  .library-card:hover, .library-card:focus-visible { border-color: var(--accent); }
+  .library-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+  .library-card span { overflow-wrap: anywhere; font-size: 10px; }
+  body.library-view section[aria-label=Behaviour] { display: none; }
+  body.library-view { grid-template-rows: auto auto minmax(0,1fr) auto; }
 </style>
 </head>
 <body>
@@ -159,7 +181,31 @@
     </details>
   </section>
 
-  <div id="log" role="log" aria-label="Call log"></div>
+  <div id="workspace">
+    <nav class="workspace-tabs" aria-label="Panel sections">
+      <button id="bridgeTab" type="button" aria-selected="true">Activity</button>
+      <button id="libraryTab" type="button" aria-selected="false">Reusable library</button>
+    </nav>
+    <div id="log" role="log" aria-label="Call log"></div>
+    <div id="library" hidden>
+      <div class="library-toolbar">
+        <strong id="libraryName">Scenes &amp; transitions</strong>
+        <details><summary>Library location</summary><div class="row"><input id="libraryPath" type="text" placeholder="Path to catalog.json" aria-label="Library catalog path"><button class="text" id="libraryLoad">Load</button></div></details>
+        <div class="row library-filters"><button class="text" id="sceneFilter" aria-pressed="true">Scenes</button><button class="text" id="transitionFilter" aria-pressed="false">Transitions</button><span id="libraryResults" class="grow"></span></div>
+        <input type="search" id="librarySearch" placeholder="Search type, UI, camera, reveal…" aria-label="Search reusable library">
+        <div id="libraryNotice" role="status" aria-live="polite"></div>
+      </div>
+      <div id="libraryDetail" hidden>
+        <strong id="libraryItemTitle"></strong>
+        <video id="libraryVideo" controls muted playsinline preload="metadata" hidden></video>
+        <img id="libraryPoster" alt="Rendered After Effects template preview" hidden>
+        <div id="libraryPreviewState"></div>
+        <div class="row library-actions"><button class="text" id="libraryPlay" disabled>Play preview</button><button class="text" id="libraryOpen">Open in AE</button><button class="text" id="libraryInsert">Insert copy</button></div>
+        <div id="libraryComp"></div><p id="libraryDescription"></p>
+      </div>
+      <div id="libraryCards" aria-label="Reusable templates"></div>
+    </div>
+  </div>
 
   <footer>
     <span class="ellipsis grow"><span id="count">0 calls</span> · <span id="version"></span></span>
@@ -167,5 +213,6 @@
   </footer>
 
 <script src="js/main.js"></script>
+<script src="js/library.js"></script>
 </body>
 </html>

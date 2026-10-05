@@ -287,3 +287,37 @@ Values tell you nothing about feel. After every motion change:
 Feel is subjective. When a choice is creative (how snappy, how much
 overshoot), show a frame or the motion sheet and ask before applying it across
 fifty layers.
+
+## Turning a note into a tweak
+
+When the user gives a timing note ("floaty", "lands late", "too bouncy",
+"the cascade drags"), pass it to the preview word for word:
+
+```json
+ae_review_motion {"comp": "Launch", "start": 0, "duration": 3, "note": "the logo feels floaty and lands late"}
+```
+
+The response gains a `tweak` section:
+
+- `motion`: every keyed move in words: how far, how many frames, how it
+  eases out and lands, any overshoot. Read it against the note even when
+  nothing else comes back.
+- With a TypeSafe key set, `judged`: what Jev took the note to mean. That is
+  the target layer, each tweak with its probability (faster, slower,
+  harder_landing, softer, more_overshoot, less_overshoot, earlier, later,
+  tighter_stagger, looser_stagger, longer_hold, shorter_hold, motion_blur,
+  smaller_move, bigger_move) and the amount (a touch, clearly, a lot).
+- `plan` and `apply`: exact `ae_edit_keyframes` edits, and one `ae_batch`
+  that runs them all as a single undo step.
+- `ask`: present when Jev wasn't sure which layer or which tweak the note
+  means. Put that question to the user instead of guessing.
+
+The plan is a proposal. Say what it will do ("tighten the logo's move to
+70% and bring it in 6 frames earlier"), run `apply`, then preview again
+with the same `note`. If the user says "more" or "too much", run it again
+with that as the note: the amount follows the wording. `ae_undo` takes the
+whole batch back.
+
+The plan only retimes keyframes. It doesn't touch expression-driven motion,
+text animators' selectors, or anything that isn't a Transform property, and
+it reports those under `other_animation` for you to handle by hand.

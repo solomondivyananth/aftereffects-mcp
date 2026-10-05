@@ -172,6 +172,45 @@ as one layer that exists in both scenes, and change only what has to change
 (scale, position, colour) over 4–8 frames. `ae-ui-motion` has the worked
 versions; `ae-morph` has the ones where the shape itself changes.
 
+## Match cuts
+
+A match cut hands one motion from shot A to shot B. The eye follows the
+motion across the cut, so what has to match is where the thing is, how fast
+it moves and which way. Whether the two shots look alike matters less.
+
+1. **Read the motion on both sides.** Watch 6–12 real frames before and
+   after the cut, not a spread across the whole shot:
+   ```json
+   ae_review_motion {"comp": "Scene A", "start": "84f", "duration": "12f", "frames": 12}
+   ```
+2. **Continue it; don't restart it.** B's first frame is the *next sample*
+   of A's motion. It must not repeat A's last pose (that reads as a stall),
+   and it must not start from rest. So the keys either side of the cut carry
+   speed. Don't ease into the cut or out of it: give the handoff key a linear
+   or velocity-matched side, and a `continuous` spatial handle so the path
+   doesn't kink:
+   ```json
+   ae_add_keyframes {"comp": "Scene B", "layer": "Ring", "path": ["Transform", "Position"],
+     "keys": [{"time": 0, "value": [980, 540], "ease": {"in": 33, "out": 33, "inSpeed": 1400, "outSpeed": 1400}, "spatial": "continuous"},
+              {"time": "14f", "value": [1500, 540], "ease": "easy_in"}]}
+   ```
+   Measure the speed A leaves with (px/s at its last key, from
+   `ae_find_animation`) and give B's first key the same speed.
+3. **One source for the shared element.** If the same ring, word or icon
+   exists on both sides, make it one precomp used in both shots. Two copies
+   drift apart in size, colour and weight, and the cut exposes the difference.
+4. **Ranges are half-open.** If frame N is A's last visible frame, A's out
+   point is frame N+1 and B's in point is frame N+1. Setting A's out point to
+   N drops a frame; setting B's in point to N shows both for a frame.
+   ```json
+   ae_set_layer_props {"comp": "Edit", "layer": "Scene A", "props": {"outPoint": "90f"}}
+   ae_set_layer_props {"comp": "Edit", "layer": "Scene B", "props": {"inPoint": "90f"}}
+   ```
+5. **Check the four frames around the cut** at full size: `ae_render_frame`
+   with `"times": ["88f", "89f", "90f", "91f"]`, then `ae_proof` for
+   `empty-frame` and pops. The shared element should sit on one smooth line
+   across all four.
+
 ## Sound
 
 Most transitions are sold by audio, not picture. A whoosh that starts 4–6

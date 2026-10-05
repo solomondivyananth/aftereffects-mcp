@@ -61,6 +61,10 @@ to a good result is to open the right one before starting:
 | a finished design filled from a brief, fast | `ae-ai-templates` |
 | procedural motion, controls, marker-driven hits | `ae-expressions` |
 | "how was this made", matching a reference reel | `ae-reference-breakdown`, `video-reference-compare` |
+| staging, "it looks flat / like a slide" | `ae-composition` |
+| removing wires, rigs, signs or objects from footage; keying; putting a subject into a plate | `ae-vfx-cleanup` |
+| a character: rig, walk, blink, look, IK arms and legs | `ae-character-rig` |
+| language versions, translated text, fonts for other scripts | `ae-localization` |
 | check it before it goes out | `ae-motion-proof`, then `ae-deliver` |
 
 ## Reading traps
@@ -72,6 +76,16 @@ to a good result is to open the right one before starting:
   Judge timing with `ae_review_motion`, never one frame.
 - `ae_find_animation` and `ae_layer_detail` flag broken expressions
   (`expressionError`) — check them when something renders wrong.
+- **A failed batch rolls back only when it is atomic.** By default
+  `ae_batch` undoes the steps before a failure, so nothing is half-built.
+  With `"atomic": false` the steps before the failure stay: read what exists
+  before retrying, or the retry builds them twice.
+- **Deleting the last Time Remap key switches time remapping off.** Keep
+  one key, or set `timeRemapEnabled` again and re-read the layer before
+  writing new keys.
+- **The frame counts, not the decimal.** A layer or comp whose duration is a
+  hair short of a whole frame can render a blank last frame even though the
+  numbers look equal. Set durations and out points in frames (`"90f"`).
 
 ## Addressing
 
@@ -182,6 +196,7 @@ Never discard without the user saying so.
 | connection refused | panel closed or AE not running — the panel must show `Listening on 127.0.0.1:7788` |
 | token error | panel restarted; retry (the token is re-read every call) |
 | call hangs, then times out | a modal dialog is open in AE — ask the user to dismiss it |
+| a write timed out | its outcome is unknown: it may have run. Read the state back (`ae_comp_tree`, `ae_layer_detail`) before repeating it, or it runs twice |
 | new tools missing / "Unknown bridge function" | the panel is running old code — click ↻ in the panel |
 | panel missing from the menu | run the installer (`npx aftereffects-mcp-install`, or `install.sh` / `install.cmd` from source), then **relaunch** AE |
 | no contact sheet | `ffmpeg` isn't installed; frames come back individually |

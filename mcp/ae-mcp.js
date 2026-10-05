@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync, execFile } = require('child_process');
 const { analyse, CHECKS, GROUPS } = require('./proof.js');
+const jev = require('./jev.js');
 
 const PORT = parseInt(process.env.AE_BRIDGE_PORT || '7788', 10);
 const STATE_PATH = path.join(os.homedir(), '.ae-mcp-bridge.json');
@@ -101,11 +102,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
    Polls asynchronously so other calls keep flowing meanwhile. */
 async function waitForStableFile(filePath, timeoutMs) {
   const deadline = Date.now() + (timeoutMs || 60000);
+  const png = /\.png$/i.test(filePath);
   let last = -1, stable = 0;
   for (;;) {
     let size = -1;
     try { size = fs.statSync(filePath).size; } catch (e) { size = -1; }
-    if (size > 0 && size === last) {
+    /* A PNG can sit at one size mid-write; it is only done at its IEND chunk. */
+    if (size > 0 && size === last && (!png || pngComplete(filePath, size))) {
       if (++stable >= 2) { return true; }
     } else {
       stable = 0;
@@ -113,6 +116,21 @@ async function waitForStableFile(filePath, timeoutMs) {
     last = size;
     if (Date.now() > deadline) { return false; }
     await sleep(40);
+  }
+}
+
+function pngComplete(filePath, size) {
+  if (size < 12) { return false; }
+  let fd;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const tail = Buffer.alloc(12);
+    fs.readSync(fd, tail, 0, 12, size - 12);
+    return tail.toString('latin1', 4, 8) === 'IEND';
+  } catch (e) {
+    return false;
+  } finally {
+    if (fd !== undefined) { try { fs.closeSync(fd); } catch (e) {} }
   }
 }
 
@@ -262,7 +280,7 @@ const TOOLS = [
   },
   {
     name: 'ae_list_items',
-    description: 'The Project panel: comps, footage, solids, folders — ids, sizes, durations, source files.',
+    description: 'The Project panel: comps, footage, solids, folders — ids, sizes, durations, source files, and usedIn (the comps each one is placed in).',
     inputSchema: obj({ kind: { type: 'string', enum: ['comp', 'footage', 'solid', 'folder', 'placeholder'] } }),
     fn: 'list_items'
   },
@@ -297,7 +315,7 @@ const TOOLS = [
   },
   {
     name: 'ae_review_motion',
-    description: 'Watch animation move: samples a range, stitches an MP4 you can open, returns one contact sheet. The only way to judge whether timing and easing feel right — use after animating anything. For the faults the eye misses (overlaps, jitter, pops, off-grid keys) run ae_proof as well.',
+    description: 'Watch animation move: samples a range, stitches an MP4 you can open, returns one contact sheet. The only way to judge whether timing and easing feel right — use after animating anything. Pass "note" with the feedback ("too floaty", "lands late") to get a tweak plan. For the faults the eye misses (overlaps, jitter, pops, off-grid keys) run ae_proof as well.',
     inputSchema: obj({
       comp: S.comp,
       start: { ...TIME, description: 'Default work area start.' },
@@ -305,7 +323,8 @@ const TOOLS = [
       frames: { type: 'number', description: 'Samples. Default 16, max 48.' },
       fps: { type: 'number', description: 'MP4 playback rate. Default 12.' },
       downscale: { type: 'number', description: 'Image size 1/N. Default 4.' },
-      columns: { type: 'number', description: 'Contact sheet columns. Default 6.' }
+      columns: { type: 'number', description: 'Contact sheet columns. Default 6.' },
+      note: { type: 'string', description: 'Feedback on this motion in plain words ("the logo feels floaty and lands late"). Adds a "tweak" section: every move described in words, and with TYPESAFE_API_KEY set, Jev judges which layer and which tweaks the note means and returns exact keyframe edits as an ae_batch plan. Nothing is applied.' }
     }),
     custom: 'review_motion'
   },
@@ -806,21 +825,49 @@ function removeAllBut(dir, keep) {
   } catch (e) {}
 }
 
-/* Move rendered frames into a numbered work folder, as ffmpeg wants them. */
-async function collectFrames(result, prefix) {
+/* Move rendered frames into a numbered work folder, as ffmpeg wants them.
+   saveFrameToPng sometimes returns without writing a file at all, so frames
+   that never land are rendered once more, and any still missing are reported
+   rather than dropped: a gap renumbered away would make playback lie about
+   timing. */
+async function collectFrames(result, prefix, comp) {
   sweepWork();
   const work = path.join(WORK_ROOT, prefix + '_' + Date.now());
   fs.mkdirSync(work, { recursive: true });
-  const kept = [];
-  for (let i = 0; i < result.frames.length; i++) {
-    const f = result.frames[i];
-    if (!(await waitForStableFile(f.path))) { continue; }
+  const frames = result.frames.slice();
+  const deadline = Date.now() + 15000 + 1000 * frames.length;
+  const settled = async (f) => waitForStableFile(f.path, Math.max(2000, deadline - Date.now()));
+
+  let late = [];
+  for (let i = 0; i < frames.length; i++) {
+    if (!(await settled(frames[i]))) { late.push(i); }
+  }
+  if (late.length) {
+    try {
+      const again = await bridge('render_frame', { comp: comp || result.comp, times: late.map((i) => frames[i].frame + 'f') });
+      late.forEach((i, j) => { if (again.frames[j]) { frames[i] = again.frames[j]; } });
+      const still = [];
+      for (const i of late) { if (!(await waitForStableFile(frames[i].path, 10000))) { still.push(i); } }
+      late = still;
+    } catch (e) {}
+  }
+
+  const kept = [], missing = [];
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    if (late.includes(i)) { missing.push({ time: f.time, frame: f.frame }); continue; }
     const dst = path.join(work, String(kept.length + 1).padStart(4, '0') + '.png');
     fs.copyFileSync(f.path, dst);
     try { fs.unlinkSync(f.path); } catch (e) {}
     kept.push({ ...f, file: dst });
   }
-  return { work, kept };
+  return { work, kept, missing };
+}
+
+function missingNote(missing, total) {
+  return missing.length + ' of ' + total + ' frames never rendered (frames ' +
+    missing.map((m) => m.frame).join(', ') + ') and are left out, so the spacing between the ' +
+    'remaining samples is uneven there. Run it again, or render those times with ae_render_frame.';
 }
 
 /* Sample a stretch of animation, stitch it into something watchable, and hand
@@ -836,7 +883,7 @@ async function reviewMotion(args) {
   if (args.duration !== undefined) { req.duration = args.duration; }
 
   const result = await bridge('render_frame', req);
-  const { work, kept } = await collectFrames(result, 'review');
+  const { work, kept, missing } = await collectFrames(result, 'review', args.comp);
   if (!kept.length) { throw new Error('No frames were rendered.'); }
 
   const meta = {
@@ -846,6 +893,8 @@ async function reviewMotion(args) {
     reading_order: 'left to right, top to bottom, ' + cols + ' per row',
     frames: kept.map((k) => k.frame)
   };
+  if (missing.length) { meta.missing = missingNote(missing, result.frames.length); }
+  if (args.note) { meta.tweak = await noteToTweaks(args, req); }
 
   const content = [];
   if (!ffmpeg) {
@@ -877,6 +926,35 @@ async function reviewMotion(args) {
   removeAllBut(work, meta.video ? 'motion.mp4' : null);
   if (!meta.video) { try { fs.rmdirSync(work); } catch (e) {} }
   return { content };
+}
+
+/* A note on the preview → a tweak plan. The proof sampler already reads every
+   key with its easing, so reuse it; jev.js describes the moves in words, asks
+   Jev what the note means, and turns confident answers into edits. Without a
+   TypeSafe key the words still come back, for the agent to judge itself. */
+async function noteToTweaks(args, req) {
+  const note = String(args.note).slice(0, 1000);
+  let data;
+  try {
+    const q = { comp: args.comp, samples: 60 };
+    if (req.start !== undefined) { q.start = req.start; }
+    if (req.duration !== undefined) { q.duration = req.duration; }
+    data = await bridge('proof', q);
+  } catch (e) {
+    return { note, error: 'Could not read the animation: ' + e.message };
+  }
+  let findings = [];
+  try { findings = analyse(data, {}).findings || []; } catch (e) {}
+  const words = jev.stateFor(note, jev.summarise(data), findings).animated_layers;
+  if (!process.env.TYPESAFE_API_KEY) {
+    return { note, motion: words,
+      jev: 'off: set TYPESAFE_API_KEY in this MCP server\'s environment to have Jev turn notes into exact keyframe edits. Until then, judge the note against "motion" yourself.' };
+  }
+  try {
+    return await jev.tweakPlan(note, data, findings);
+  } catch (e) {
+    return { note, motion: words, jev: 'failed: ' + e.message + '. Judge the note against "motion" yourself.' };
+  }
 }
 
 /* Proof-read: the panel samples the comp, proof.js applies the rules, and the
@@ -922,7 +1000,9 @@ async function renderFrames(args) {
   const wantSheet = args.sheet === true || (args.sheet !== false && n > 3);
 
   if (wantSheet && n > 1 && findFfmpeg()) {
-    const { work, kept } = await collectFrames(result, 'frames');
+    const { work, kept, missing } = await collectFrames(result, 'frames', args.comp);
+    if (!kept.length) { fs.rmSync(work, { recursive: true, force: true }); throw new Error('No frames were rendered.'); }
+    if (missing.length) { meta.missing = missingNote(missing, n); }
     const cols = Math.min(kept.length, n <= 4 ? 2 : n <= 9 ? 3 : 4);
     const sheet = await contactSheet(kept, cols, work);
     meta.layout = 'contact sheet, left to right, top to bottom, ' + cols + ' per row';

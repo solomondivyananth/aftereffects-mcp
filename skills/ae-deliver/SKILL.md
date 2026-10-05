@@ -38,16 +38,28 @@ rendering.
 
 ## 2. Format variants
 
-Make variants from the finished master, never by rebuilding:
+Start each variant from the finished master, so it keeps the same precomps,
+assets, timing and animation. Don't rebuild those from scratch:
 
 ```json
 ae_duplicate_comp {"comp": "Master 16x9", "name": "Master 9x16", "width": 1080, "height": 1920}
 ```
 
-That re-centres top-level layers. Then reposition anything near an edge and
-check every variant with `ae_render_frame` — and with `ae_proof`, which is
-where a layout that passes in 16:9 shows up as `clipped`, `safe-area` or
-`text-overflow` in 9:16 (`ae-motion-proof`).
+That re-centres top-level layers and nothing more. A new aspect ratio is a
+new layout, not a crop. Restage each beat for its frame: stack what was side
+by side, give the subject more of the width, and resize anything built to
+the full width of the master (bars, rules, text boxes, backgrounds). The
+rules are in `ae-composition` under Formats. A crop that only nudges layers
+inward usually leaves 9:16 as a small 16:9 band floating in the middle.
+
+Keep the motion in step with the master: change positions, sizes and text
+boxes, not key times, so every variant cuts on the same frames. Where a move
+is laid out for the frame (a slide in from the left edge), re-key its values
+for the new frame and keep its timing.
+
+Check every variant with `ae_render_frame` and with `ae_proof`. A layout that
+passes in 16:9 shows up in 9:16 as `clipped`, `safe-area`, `text-overflow` or
+`frame-unused` (`ae-motion-proof`).
 
 | Format | Size | Keep key content inside |
 |---|---|---|

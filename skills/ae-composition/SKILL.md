@@ -124,7 +124,8 @@ parallax that no amount of easing can imitate (`ae-camera-3d`).
 
 ## Formats
 
-A layout is not a size. When reframing (`ae-deliver`):
+A layout is not a size. A variant starts as a duplicate of the master
+(`ae-deliver`), so it keeps the assets and the timing, and then gets restaged:
 
 - **9:16** — stack what was side by side; raise type relative to width; keep
   the beat between 12% and 80% of the height.
